@@ -5,6 +5,7 @@ import App from './App';
 import './styles.css';
 import './improvements.css';
 import './ai-controls.css';
-import './reading-highlight.css';
+import './listening-overlay.css';
+import './voice-preview.css';
 registerSW({immediate:true});
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
