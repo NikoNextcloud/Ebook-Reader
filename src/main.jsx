@@ -5,5 +5,6 @@ import App from './App';
 import './styles.css';
 import './improvements.css';
 import './ai-controls.css';
+import './reading-highlight.css';
 registerSW({immediate:true});
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
