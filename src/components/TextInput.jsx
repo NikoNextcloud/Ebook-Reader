@@ -1,0 +1,9 @@
+import { useRef,useState } from 'react';
+import mammoth from 'mammoth';
+import * as pdfjsLib from 'pdfjs-dist';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc=workerSrc;
+
+export default function TextInput({text,setText}){const input=useRef();const[status,setStatus]=useState('');
+ const load=async file=>{if(!file)return;setStatus(`Зареждам ${file.name}…`);try{let value='';if(file.name.toLowerCase().endsWith('.txt'))value=await file.text();else if(file.name.toLowerCase().endsWith('.docx')){const r=await mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});value=r.value}else if(file.name.toLowerCase().endsWith('.pdf')){const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;for(let i=1;i<=pdf.numPages;i++){const c=await(await pdf.getPage(i)).getTextContent();value+=c.items.map(x=>x.str).join(' ')+'\n\n'}}else throw Error('Поддържат се .txt, .docx и .pdf файлове.');setText(value.trim());setStatus(`Готово · ${value.trim().split(/\s+/).filter(Boolean).length} думи`)}catch(e){setStatus(e.message||'Файлът не може да бъде прочетен.')}};
+ return <section className="card text-card"><div className="section-head"><div><span className="eyebrow">01 · ТВОЯТ ТЕКСТ</span><h2>Какво искаш да чуеш?</h2></div><button className="upload" onClick={()=>input.current.click()}>＋ Качи файл</button><input ref={input} hidden type="file" accept=".txt,.docx,.pdf" onChange={e=>load(e.target.files[0])}/></div><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Постави статия, история, бележки или откъс от книга…"/><div className="text-meta"><span>{status||'TXT · DOCX · PDF'}</span><span>{text.length.toLocaleString('bg-BG')} знака</span></div></section>}
