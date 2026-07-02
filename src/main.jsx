@@ -4,5 +4,6 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './styles.css';
 import './improvements.css';
+import './ai-controls.css';
 registerSW({immediate:true});
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
