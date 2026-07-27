@@ -1,7 +1,7 @@
-// Таймер за сън — спира четенето след избрания брой минути.
+// Таймер за сън — спира след избрания брой минути или в края на главата.
 const options = [0, 15, 30, 45, 60];
 
-export default function SleepTimer({ minutes, onChange, remaining }) {
+export default function SleepTimer({ minutes, onChange, remaining, chapterMode, onChapterMode, hasChapters }) {
   return (
     <section className="control-section sleep-timer">
       <div className="inline-title">
@@ -17,12 +17,17 @@ export default function SleepTimer({ minutes, onChange, remaining }) {
         {options.map((value) => (
           <button
             key={value}
-            className={minutes === value ? 'active' : ''}
-            onClick={() => onChange(value)}
+            className={minutes === value && !chapterMode ? 'active' : ''}
+            onClick={() => { onChapterMode(false); onChange(value); }}
           >
             {value === 0 ? 'Изкл.' : `${value} мин.`}
           </button>
         ))}
+        {hasChapters && (
+          <button className={chapterMode ? 'active' : ''} onClick={() => { onChange(0); onChapterMode(!chapterMode); }}>
+            Край на главата
+          </button>
+        )}
       </div>
     </section>
   );

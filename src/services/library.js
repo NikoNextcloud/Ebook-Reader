@@ -29,7 +29,7 @@ export const makeTitle = (text, fallback = 'Без заглавие') => {
 };
 
 // Запазва (или обновява) книга. Дедупликира по идентичен текст, за да не трупа копия.
-export const saveBook = ({ id, title, text }) => {
+export const saveBook = ({ id, title, text, author, cover }) => {
   const clean = (text || '').trim();
   if (!clean) return null;
 
@@ -40,10 +40,21 @@ export const saveBook = ({ id, title, text }) => {
   record.title = title || record.title || makeTitle(clean);
   record.text = clean;
   record.words = clean.split(/\s+/).filter(Boolean).length;
+  if (author !== undefined) record.author = author;
+  if (cover !== undefined) record.cover = cover;
   record.updatedAt = Date.now();
 
   write([record, ...list.filter((book) => book.id !== record.id)]);
   return record;
+};
+
+// Задава произволно поле на книга (рейтинг, finished, favorite, cachedOffline…).
+export const setBookField = (id, patch) => {
+  const list = read();
+  const book = list.find((item) => item.id === id);
+  if (!book) return;
+  Object.assign(book, patch);
+  write(list);
 };
 
 export const updatePosition = (id, chunkIndex) => {

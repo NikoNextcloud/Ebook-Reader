@@ -363,6 +363,11 @@ export class GeminiTTS {
     return concatWavBlobs(blobs);
   }
 
+  setPlaybackRate(rate) {
+    if (this.options) this.options.rate = rate;
+    if (this.audio) this.audio.playbackRate = rate;
+  }
+
   pause() { this.audio?.pause(); }
 
   resume() { return this.audio?.play(); }

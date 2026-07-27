@@ -136,3 +136,96 @@ header.minimal{justify-content:flex-end}
 :root[data-theme="dark"] .bookmark-chip{background:#2a1f1c;border-color:#4a352f}
 :root[data-theme="dark"] .quota-note{background:#2a2416;border-color:#4a3f22;color:#e0c78a}
 :root[data-theme="dark"] .storage-row{color:#9aa9a4}
+
+/* ═══════ STORYTEL-СТИЛ: начален екран ═══════ */
+.nav-home{border:1px solid #cdd6d1;background:transparent;color:inherit;border-radius:20px;padding:6px 12px;font-size:12px;cursor:pointer}
+.home{max-width:1180px;margin:0 auto;padding:20px 22px 140px}
+.home-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:10px 0 22px}
+.home-hero h1{font-family:'Fraunces',serif;font-style:italic;font-size:clamp(28px,4vw,44px);margin:6px 0 0}
+.new-book{border:0;border-radius:14px;padding:13px 20px;background:#ec705a;color:#fff;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 10px 22px #ec705a35}
+
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:26px}
+.stats-bar .stat{background:#fff;border:1px solid #e6e8e2;border-radius:14px;padding:14px 16px;text-align:center}
+.stats-bar .stat b{display:block;font-size:18px;color:#173f3d}
+.stats-bar .stat small{font-size:10px;color:#83918e}
+.queue-note{font-size:12px;color:#177a63;margin:-10px 0 18px}
+
+.empty-lib{text-align:center;padding:60px 20px;color:#6c7a76}
+.empty-lib .new-book{margin-top:16px}
+
+.shelf{margin-bottom:30px}
+.shelf h2{font-size:16px;margin:0 0 12px}
+.shelf-row{display:grid;grid-auto-flow:column;grid-auto-columns:150px;gap:16px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}
+.shelf-row::-webkit-scrollbar{height:6px}
+.shelf-row::-webkit-scrollbar-thumb{background:#cdd6d1;border-radius:3px}
+
+/* ——— Карта на книга ——— */
+.book-card{width:150px;scroll-snap-align:start}
+.book-cover-btn{position:relative;display:block;width:100%;border:0;padding:0;background:transparent;cursor:pointer;border-radius:12px;overflow:hidden}
+.cover-art{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:12px;display:block;box-shadow:0 8px 20px #0002}
+.cover-art.gen{display:flex;flex-direction:column;justify-content:space-between;padding:12px;color:#fff}
+.cover-art.gen .cover-initials{font-family:'Fraunces',serif;font-size:30px;font-weight:700;opacity:.9}
+.cover-art.gen .cover-title{font-size:12px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cover-art.lg{aspect-ratio:2/3;max-height:38vh;width:auto;margin:0 auto}
+.book-cover-btn .cover-play{position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:50%;background:#ec705aee;color:#fff;display:grid;place-items:center;font-size:12px;opacity:0;transition:.2s}
+.book-cover-btn:hover .cover-play{opacity:1}
+.cover-progress{position:absolute;left:0;bottom:0;width:100%;height:4px;background:#0003}
+.cover-progress i{display:block;height:100%;width:var(--pct);background:#ec705a}
+.cover-done{position:absolute;top:8px;left:8px;width:24px;height:24px;border-radius:50%;background:#177a63;color:#fff;display:grid;place-items:center;font-size:12px}
+.book-meta{padding:8px 2px 0}
+.book-title{font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.book-author{display:block;font-size:11px;color:#83918e;margin-top:2px}
+.book-rating{display:flex;gap:1px;margin-top:5px}
+.book-rating button{border:0;background:transparent;color:#d3d8d3;font-size:13px;cursor:pointer;padding:0}
+.book-rating button.on{color:#f0b429}
+.book-actions{display:flex;gap:4px;margin-top:6px}
+.book-actions button{flex:1;border:1px solid #e6e8e2;background:#fff;border-radius:8px;padding:4px 0;font-size:11px;color:#6c7a76;cursor:pointer}
+.book-actions button.on{color:#ec705a;border-color:#f0cabf;background:#fff6f3}
+
+/* ═══════ Пълноекранен плейър „Сега слушаш“ ═══════ */
+.now-playing{position:fixed;inset:0;z-index:60;overflow-y:auto;background:radial-gradient(circle at 50% 0%,#1b3b38,#0d2626 60%);color:#fff;padding:20px 20px 40px;display:flex;flex-direction:column;align-items:center;gap:16px;animation:overlayIn .3s ease}
+.np-close{align-self:flex-start;border:0;background:#ffffff1a;color:#fff;width:40px;height:40px;border-radius:50%;font-size:18px;cursor:pointer}
+.np-cover{margin-top:4px}
+.np-cover .cover-art{box-shadow:0 20px 60px #0007}
+.np-title{text-align:center}
+.np-title h2{font-family:'Fraunces',serif;font-style:italic;font-size:24px;margin:0}
+.np-title p{margin:4px 0 0;opacity:.7;font-size:13px}
+.np-rating{display:flex;gap:3px}
+.np-rating button{border:0;background:transparent;color:#ffffff40;font-size:20px;cursor:pointer}
+.np-rating button.on{color:#f0b429}
+.np-scrubber{width:min(560px,92%);height:6px;background:#ffffff22;border-radius:4px;overflow:hidden}
+.np-scrubber.seekable{cursor:pointer;height:8px}
+.np-scrubber i{display:block;height:100%;background:#ec705a}
+.np-time{width:min(560px,92%);display:flex;justify-content:space-between;font-size:11px;opacity:.7}
+.np-time span:nth-child(2){opacity:.85}
+.np-transport{display:flex;align-items:center;gap:14px}
+.np-transport button{border:0;background:transparent;color:#fff;font-size:15px;width:44px;height:44px;border-radius:50%;cursor:pointer}
+.np-transport .np-main{background:#f3eee4;color:#143c3a;font-size:20px;width:64px;height:64px}
+.np-tools{width:min(560px,92%);display:flex;flex-direction:column;gap:12px;align-items:center}
+.np-speeds,.np-sleep{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.np-speeds button,.np-sleep button{border:1px solid #ffffff30;background:transparent;color:#fff;border-radius:16px;padding:5px 11px;font-size:12px;cursor:pointer}
+.np-speeds button.on,.np-sleep button.on{background:#ec705a;border-color:#ec705a}
+.np-sleep span{font-size:12px;opacity:.7;align-self:center;margin-right:2px}
+.np-tool-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.np-tool-btns button{border:1px solid #ffffff30;background:#ffffff12;color:#fff;border-radius:12px;padding:8px 14px;font-size:12px;cursor:pointer}
+.np-tool-btns button.on{background:#ec705a;border-color:#ec705a}
+.np-chapters,.np-bookmarks{width:min(560px,92%);margin-top:8px}
+.np-chapters h3,.np-bookmarks h3{font-size:13px;opacity:.8;margin:0 0 8px}
+.np-chapter{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid #ffffff14;background:transparent;color:#fff;padding:10px 4px;cursor:pointer}
+.np-chapter.active{color:#ffd7a8}
+.np-chapter .np-ch-mark{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#ffffff1a;font-size:12px}
+.np-chapter.active .np-ch-mark{background:#ec705a}
+.np-chapter b{font-weight:500;font-size:13px}
+.np-chapter small{opacity:.6;font-size:11px}
+.np-bookmarks button{display:block;width:100%;text-align:left;border:0;background:#ffffff10;color:#fff;border-radius:10px;padding:9px 12px;margin-bottom:6px;cursor:pointer;font-size:12px}
+.np-text{width:min(620px,94%);margin-top:10px;max-height:40vh}
+
+@media (max-width:560px){
+  .stats-bar{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ——— Тъмна тема за началния екран ——— */
+:root[data-theme="dark"] .stats-bar .stat{background:#16211f;border-color:#26332f}
+:root[data-theme="dark"] .stats-bar .stat b{color:#e7ece9}
+:root[data-theme="dark"] .book-actions button{background:#1c2b28;border-color:#2c3a36;color:#9aa9a4}
+:root[data-theme="dark"] .nav-home{border-color:#2c3a36}

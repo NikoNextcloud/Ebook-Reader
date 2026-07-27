@@ -15,6 +15,25 @@ const resolvePath = (base, relative) => {
   return stack.join('/');
 };
 
+// Умалява корица до макс 260px и връща лек JPEG data URL.
+const shrinkImage = (bytes) => new Promise((resolve) => {
+  const blob = new Blob([bytes]);
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    const max = 260;
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    resolve(canvas.toDataURL('image/jpeg', 0.72));
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+  img.src = url;
+});
+
 export const parseEpub = async (arrayBuffer) => {
   const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(arrayBuffer);
@@ -29,16 +48,33 @@ export const parseEpub = async (arrayBuffer) => {
 
   const opf = new DOMParser().parseFromString(await zip.file(opfPath).async('string'), 'application/xml');
 
-  // 2. заглавие на книгата
+  // 2. заглавие и автор на книгата
   const bookTitle = opf.querySelector('title')?.textContent?.trim() || '';
+  const author = opf.querySelector('creator')?.textContent?.trim() || '';
 
-  // 3. карта id -> href от manifest
+  // 3. карта id -> href от manifest (+ href на корицата)
   const manifest = {};
+  let coverHref = null;
   opf.querySelectorAll('manifest > item').forEach((item) => {
-    manifest[item.getAttribute('id')] = item.getAttribute('href');
+    const id = item.getAttribute('id');
+    const href = item.getAttribute('href');
+    manifest[id] = href;
+    const props = item.getAttribute('properties') || '';
+    if (props.includes('cover-image') || /cover/i.test(id)) {
+      if (/\.(jpe?g|png|gif|webp)$/i.test(href || '')) coverHref = href;
+    }
   });
 
-  // 4. ред на четене от spine
+  // 4. извади и умали корицата (за да не тежи на localStorage)
+  let cover = null;
+  if (coverHref) {
+    try {
+      const bytes = await zip.file(resolvePath(opfPath, coverHref))?.async('uint8array');
+      if (bytes) cover = await shrinkImage(bytes);
+    } catch { /* без корица */ }
+  }
+
+  // 5. ред на четене от spine
   const chapters = [];
   const spineItems = [...opf.querySelectorAll('spine > itemref')];
 
@@ -55,5 +91,5 @@ export const parseEpub = async (arrayBuffer) => {
   }
 
   if (!chapters.length) throw new Error('EPUB файлът не съдържа четим текст.');
-  return { title: bookTitle, chapters };
+  return { title: bookTitle, author, cover, chapters };
 };

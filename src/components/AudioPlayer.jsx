@@ -5,7 +5,7 @@ const fmt = (s) => {
   return `${m}:${String(sec).padStart(2, '0')}`;
 };
 
-export default function AudioPlayer({ status, progress, position, remainingMins, onPlay, onPause, onStop, onRestart, onPrev, onNext, onSkip, onSeek, onBookmark, onDownload, downloading, disabled }) {
+export default function AudioPlayer({ status, progress, position, remainingMins, cover, onExpand, onPlay, onPause, onStop, onPrev, onNext, onSkip, onSeek, onBookmark, onDownload, downloading, disabled }) {
   const active = status !== 'idle' && status !== 'stopped' && status !== 'finished';
   const canSeek = active && status !== 'loading';
   const seek = (e) => {
@@ -22,13 +22,13 @@ export default function AudioPlayer({ status, progress, position, remainingMins,
 
   return (
     <div className={`player ${active ? 'live' : ''}`}>
-      <div className="player-info">
-        <span className="cover">V</span>
+      <button className="player-info" onClick={onExpand} aria-label="Отвори плейъра" style={{ border: 0, background: 'transparent', textAlign: 'left', cursor: onExpand ? 'pointer' : 'default' }}>
+        <span className="cover">{cover ? <img src={cover} alt="" /> : 'V'}</span>
         <div>
           <b>{active ? 'Voxora чете' : 'Готово за слушане'}</b>
           <small>{sub}{active && remainingMins != null ? ` · остават ~${remainingMins} мин.` : ''}</small>
         </div>
-      </div>
+      </button>
       <div className={`progress ${canSeek ? 'seekable' : ''}`} onClick={seek} role="slider" aria-label="Позиция в текущата част" aria-valuenow={Math.round(canSeek ? chunkPct : progress)}>
         <i style={{ width: `${canSeek ? chunkPct : progress}%` }} />
       </div>
