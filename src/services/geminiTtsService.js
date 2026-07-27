@@ -5,6 +5,9 @@ import { langName } from './lang';
 // Кеш в паметта за бърз достъп; IndexedDB пази звука между сесиите (офлайн).
 const audioCache = new Map();
 const MAX_CHUNK_LENGTH = 2600;
+// Първото парче е нарочно малко → звукът тръгва бързо, а останалото се
+// дозарежда (prefetch), докато слушаш.
+const FIRST_CHUNK_LENGTH = 520;
 const SAMPLE_RATE = 24000;
 
 const wavFromPcmBytes = (pcm, sampleRate = SAMPLE_RATE) => {
@@ -68,20 +71,20 @@ const friendlyError = (error) => {
   return new Error('AI гласът временно не може да бъде генериран. Опитай отново след малко.');
 };
 
-export const splitTextForSpeech = (text) => {
-  const cleanText = (text || '').replace(/\s+/g, ' ').trim();
+// Плавно нарастване на дължината: 1-во парче малко (бърз старт), 2-ро средно,
+// след това пълния лимит — така prefetch-ът винаги успява да изпревари слушането.
+const SECOND_CHUNK_LENGTH = 1200;
 
-  if (!cleanText) return [];
-  if (cleanText.length <= MAX_CHUNK_LENGTH) return [cleanText];
-
-  const sentences = cleanText.match(/[^.!?…]+[.!?…]+["“”']?|[^.!?…]+$/g) || [cleanText];
+// Пакетира изреченията в парчета според capFor(index).
+const packSentences = (sentences, capFor) => {
   const chunks = [];
   let current = '';
+  const cap = () => capFor(chunks.length);
 
   for (const sentence of sentences) {
     const next = `${current} ${sentence}`.trim();
 
-    if (next.length <= MAX_CHUNK_LENGTH) {
+    if (next.length <= cap()) {
       current = next;
       continue;
     }
@@ -91,29 +94,43 @@ export const splitTextForSpeech = (text) => {
       current = '';
     }
 
-    if (sentence.length <= MAX_CHUNK_LENGTH) {
+    if (sentence.trim().length <= cap()) {
       current = sentence.trim();
       continue;
     }
 
+    // изречение по-дълго от лимита → разбий по думи
     const words = sentence.trim().split(' ');
     let wordChunk = '';
-
     for (const word of words) {
       const candidate = `${wordChunk} ${word}`.trim();
-      if (candidate.length > MAX_CHUNK_LENGTH && wordChunk) {
+      if (candidate.length > cap() && wordChunk) {
         chunks.push(wordChunk);
         wordChunk = word;
       } else {
         wordChunk = candidate;
       }
     }
-
     if (wordChunk) current = wordChunk;
   }
 
   if (current) chunks.push(current);
   return chunks;
+};
+
+export const splitTextForSpeech = (text, { fastStart = true } = {}) => {
+  const cleanText = (text || '').replace(/\s+/g, ' ').trim();
+
+  if (!cleanText) return [];
+
+  const capFor = fastStart
+    ? (index) => (index === 0 ? FIRST_CHUNK_LENGTH : index === 1 ? SECOND_CHUNK_LENGTH : MAX_CHUNK_LENGTH)
+    : () => MAX_CHUNK_LENGTH;
+
+  if (cleanText.length <= capFor(0)) return [cleanText];
+
+  const sentences = cleanText.match(/[^.!?…]+[.!?…]+["“”']?|[^.!?…]+$/g) || [cleanText];
+  return packSentences(sentences, capFor);
 };
 
 const rateBucket = (rate) => {
