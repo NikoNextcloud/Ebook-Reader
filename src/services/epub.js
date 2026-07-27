@@ -19,7 +19,7 @@ const resolvePath = (base, relative) => {
 const shrinkImage = (bytes) => new Promise((resolve) => {
   const blob = new Blob([bytes]);
   const url = URL.createObjectURL(blob);
-  const img = new Image();
+      const img = new window.Image();
   img.onload = () => {
     const max = 260;
     const scale = Math.min(1, max / Math.max(img.width, img.height));

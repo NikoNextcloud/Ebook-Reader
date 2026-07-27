@@ -13,7 +13,7 @@ const SLEEPS = [15, 30, 45, 60];
 
 export default function NowPlaying({
   book, status, progress, position, chapters, activeChapter, rate, remainingMins,
-  chunks, activeChunk, wordFraction, sleepMinutes, sleepRemaining, chapterMode, voiceEnergy = 0,
+  chunks, activeChunk, wordFraction, sleepMinutes, sleepRemaining, chapterMode, voiceEnergy = 0, message,
   onClose, onPlay, onPause, onStop, onPrev, onNext, onSkip, onSeek, onRate, onBookmark, onSpeed,
   onSelectChapter, onJumpBookmark, onRemoveBookmark, onJumpChunk, onSleep, onChapterMode,
 }) {
@@ -73,12 +73,21 @@ export default function NowPlaying({
         <span>{fmt(position?.chunkDuration)}</span>
       </div>
 
+      {message && ['paused', 'error'].includes(status) && (
+        <div className="np-audio-notice" role="status" aria-live="polite">
+          <span aria-hidden="true">▶</span>
+          <p>{message}</p>
+        </div>
+      )}
+
       <div className="np-transport">
         <button onClick={onPrev} aria-label="Предишна част">⏮</button>
         <button onClick={() => onSkip(-15)} aria-label="Назад 15с">«15</button>
-        {status === 'speaking'
-          ? <button className="np-main" onClick={onPause} aria-label="Пауза">Ⅱ</button>
-          : <button className="np-main" onClick={onPlay} aria-label="Пусни">▶</button>}
+        {status === 'loading'
+          ? <button className="np-main is-loading" disabled aria-label="Гласът се подготвя">…</button>
+          : status === 'speaking'
+            ? <button className="np-main" onClick={onPause} aria-label="Пауза">Ⅱ</button>
+            : <button className="np-main" onClick={onPlay} aria-label="Пусни">▶</button>}
         <button onClick={() => onSkip(15)} aria-label="Напред 15с">15»</button>
         <button onClick={onNext} aria-label="Следваща част">⏭</button>
       </div>

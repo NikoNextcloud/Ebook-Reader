@@ -11,7 +11,11 @@ import Home from './components/Home';
 import NowPlaying from './components/NowPlaying';
 import AudioPlayer from './components/AudioPlayer';
 import { AmbientAudio } from './services/ambientAudio';
-import { GeminiTTS, splitTextForSpeech } from './services/geminiTtsService';
+import {
+  AUDIO_GESTURE_REQUIRED,
+  GeminiTTS,
+  splitTextForSpeech,
+} from './services/geminiTtsService';
 import {
   loadBooks, saveBook, updatePosition, updateTitle, removeBook, makeTitle, setBookField,
   addBookmark, removeBookmark, exportLibrary, importLibrary,
@@ -224,6 +228,11 @@ export default function App() {
     } catch (error) {
       ambient.current.stop();
       setVoiceEnergy(0);
+      if (error?.code === AUDIO_GESTURE_REQUIRED) {
+        setStatus('paused');
+        setMessage(error.message);
+        return;
+      }
       setStatus('error');
       setMessage(error.message || 'Гласът не може да бъде генериран. Провери ключа.');
     }
@@ -249,10 +258,16 @@ export default function App() {
   const speak = async (fromStart) => {
     if (!text.trim()) return;
     if (status === 'paused' && !fromStart) {
-      await tts.current.resume();
-      ambient.current.resume();
-      setStatus('speaking');
-      setPlayerOpen(true);
+      try {
+        await tts.current.resume();
+        ambient.current.resume();
+        setMessage('');
+        setStatus('speaking');
+        setPlayerOpen(true);
+      } catch (error) {
+        setStatus('paused');
+        setMessage(error.message || 'Телефонът блокира звука. Отвори страницата директно в Safari или Chrome и натисни Play.');
+      }
       return;
     }
     const record = ensureSaved();
@@ -566,6 +581,7 @@ export default function App() {
           sleepRemaining={sleepRemaining}
           chapterMode={chapterMode}
           voiceEnergy={voiceEnergy}
+          message={message}
           onClose={() => setPlayerOpen(false)}
           onPlay={() => speak(false)}
           onPause={pause}

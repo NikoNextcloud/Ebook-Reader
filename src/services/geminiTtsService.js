@@ -9,6 +9,24 @@ const MAX_CHUNK_LENGTH = 2600;
 // дозарежда (prefetch), докато слушаш.
 const FIRST_CHUNK_LENGTH = 520;
 const SAMPLE_RATE = 24000;
+export const AUDIO_GESTURE_REQUIRED = 'AUDIO_GESTURE_REQUIRED';
+
+const isAppleMobile = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+const isPlaybackBlocked = (error) => (
+  error?.name === 'NotAllowedError'
+  || /not allowed|user agent|permission|gesture/i.test(String(error?.message || error))
+);
+
+const playbackBlockedError = () => {
+  const error = new Error('Гласът е готов. Докосни Play още веднъж, за да разрешиш звука на телефона.');
+  error.code = AUDIO_GESTURE_REQUIRED;
+  return error;
+};
 
 const wavFromPcmBytes = (pcm, sampleRate = SAMPLE_RATE) => {
   const out = new ArrayBuffer(44 + pcm.length);
@@ -184,26 +202,58 @@ export class GeminiTTS {
     this.analyser = null;
     this.sourceNode = null;
     this.energyFrame = null;
+    this.primerUrl = null;
+    this.priming = false;
+    this.awaitingGesture = false;
+  }
+
+  ensureAudio() {
+    if (this.audio) return this.audio;
+    this.audio = new Audio();
+    this.audio.preload = 'auto';
+    this.audio.playsInline = true;
+    this.audio.setAttribute('playsinline', '');
+    this.audio.setAttribute('webkit-playsinline', '');
+    return this.audio;
   }
 
   async unlockAudio() {
-    if (this.unlocked) return;
-    const silent = wavFromPcmBytes(new Uint8Array([0, 0]));
-    const url = URL.createObjectURL(silent);
-    const audio = this.audio || new Audio();
-    const previousVolume = audio.volume;
-    audio.src = url;
-    audio.volume = 0;
-    audio.playsInline = true;
-    if (this.audioContext?.state === 'suspended') await this.audioContext.resume();
-    await audio.play();
-    audio.pause();
-    audio.currentTime = 0;
-    audio.volume = previousVolume;
-    URL.revokeObjectURL(url);
-    audio.removeAttribute('src');
-    this.audio = audio;
-    this.unlocked = true;
+    const audio = this.ensureAudio();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+
+    try {
+      if (AudioCtx && !isAppleMobile()) {
+        this.audioContext = this.audioContext || new AudioCtx();
+        if (this.audioContext.state === 'suspended') await this.audioContext.resume();
+      }
+
+      this.stopEnergyMeter();
+      audio.pause();
+      audio.ontimeupdate = null;
+      audio.onended = null;
+      audio.loop = true;
+      audio.volume = 0.001;
+      audio.playbackRate = 1;
+
+      if (!this.primerUrl) {
+        // Една секунда тишина остава да се върти, докато Gemini подготвя гласа.
+        // Това запазва разрешението от докосването в iOS и in-app браузъри.
+        this.primerUrl = URL.createObjectURL(
+          wavFromPcmBytes(new Uint8Array(SAMPLE_RATE * 2)),
+        );
+      }
+      audio.src = this.primerUrl;
+      audio.load();
+      await audio.play();
+      this.priming = true;
+      this.unlocked = true;
+      this.awaitingGesture = false;
+      return true;
+    } catch {
+      this.priming = false;
+      this.unlocked = false;
+      return false;
+    }
   }
 
   async request(model, prompt, voiceName) {
@@ -324,38 +374,83 @@ export class GeminiTTS {
   }
 
   async playBlob(blob, rate, index, onEnd) {
-    this.clearAudio();
+    this.stopEnergyMeter();
+    const audio = this.ensureAudio();
+    audio.pause();
+    audio.ontimeupdate = null;
+    audio.onended = null;
+    if (this.url) URL.revokeObjectURL(this.url);
     this.url = URL.createObjectURL(blob);
-    this.audio = this.audio || new Audio();
-    this.audio.src = this.url;
-    this.audio.playsInline = true;
-    this.audio.playbackRate = rate;
+    audio.loop = false;
+    audio.volume = 1;
+    audio.src = this.url;
+    audio.playbackRate = rate;
+    audio.load();
+    this.priming = false;
+    if (this.primerUrl) {
+      URL.revokeObjectURL(this.primerUrl);
+      this.primerUrl = null;
+    }
 
     const total = this.chunks.length || 1;
-    this.audio.ontimeupdate = () => {
-      const duration = this.audio?.duration || 0;
-      const part = duration ? this.audio.currentTime / duration : 0;
+    audio.ontimeupdate = () => {
+      const duration = audio.duration || 0;
+      const part = duration ? audio.currentTime / duration : 0;
       this.options?.onProgress?.(Math.min(99.5, ((index + part) / total) * 100));
       this.options?.onPosition?.({
         chunk: index,
         total,
-        chunkTime: this.audio?.currentTime || 0,
+        chunkTime: audio.currentTime || 0,
         chunkDuration: duration,
       });
     };
-    this.audio.onended = () => onEnd?.();
-    this.startEnergyMeter();
+    audio.onended = () => onEnd?.();
 
-    await this.audio.play();
+    try {
+      await audio.play();
+      this.unlocked = true;
+      this.awaitingGesture = false;
+      this.startEnergyMeter();
+    } catch (error) {
+      if (isPlaybackBlocked(error)) {
+        this.awaitingGesture = true;
+        throw playbackBlockedError();
+      }
+      throw error;
+    }
   }
 
   startEnergyMeter() {
     this.stopEnergyMeter();
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!this.audio || !AudioCtx) return;
+    if (!this.audio) return;
+
+    const syntheticMeter = () => {
+      const tick = () => {
+        if (!this.audio || this.audio.paused || this.cancelled) {
+          this.options?.onEnergy?.(0);
+          return;
+        }
+        const t = this.audio.currentTime || performance.now() / 1000;
+        const energy = 0.22 + Math.abs(Math.sin(t * 2.8)) * 0.16 + Math.abs(Math.sin(t * 5.1)) * 0.08;
+        this.options?.onEnergy?.(energy);
+        this.energyFrame = window.requestAnimationFrame(tick);
+      };
+      tick();
+    };
 
     try {
+      // В iOS MediaElementSource може да направи иначе свирещия <audio> беззвучен.
+      // Там използваме лек визуален ритъм и оставяме аудиото по директния път.
+      if (!AudioCtx || isAppleMobile()) {
+        syntheticMeter();
+        return;
+      }
       this.audioContext = this.audioContext || new AudioCtx();
+      if (this.audioContext.state !== 'running') {
+        syntheticMeter();
+        return;
+      }
       this.analyser = this.analyser || this.audioContext.createAnalyser();
       this.analyser.fftSize = 128;
       if (!this.sourceNode) {
@@ -372,17 +467,17 @@ export class GeminiTTS {
         this.analyser.getByteFrequencyData(data);
         const avg = data.reduce((sum, value) => sum + value, 0) / (data.length * 255);
         this.options?.onEnergy?.(Math.min(1, avg * 2.8));
-        this.energyFrame = requestAnimationFrame(tick);
+        this.energyFrame = window.requestAnimationFrame(tick);
       };
       tick();
     } catch {
-      this.options?.onEnergy?.(0.35);
+      syntheticMeter();
     }
   }
 
   stopEnergyMeter() {
     if (this.energyFrame) {
-      cancelAnimationFrame(this.energyFrame);
+      window.cancelAnimationFrame(this.energyFrame);
       this.energyFrame = null;
     }
   }
@@ -447,10 +542,18 @@ export class GeminiTTS {
 
   pause() { this.audio?.pause(); }
 
-  resume() {
-    const playing = this.audio?.play();
-    this.startEnergyMeter();
-    return playing;
+  async resume() {
+    if (!this.audio) return false;
+    try {
+      await this.audio.play();
+      this.awaitingGesture = false;
+      this.unlocked = true;
+      this.startEnergyMeter();
+      return true;
+    } catch (error) {
+      if (isPlaybackBlocked(error)) throw playbackBlockedError();
+      throw error;
+    }
   }
 
   clearAudio() {
@@ -467,6 +570,11 @@ export class GeminiTTS {
       URL.revokeObjectURL(this.url);
       this.url = null;
     }
+    if (this.primerUrl) {
+      URL.revokeObjectURL(this.primerUrl);
+      this.primerUrl = null;
+    }
+    this.priming = false;
   }
 
   stop({ keepUnlocked = false } = {}) {
@@ -474,9 +582,9 @@ export class GeminiTTS {
     this.stopEnergyMeter();
     this.options?.onEnergy?.(0);
     if (keepUnlocked && this.unlocked && this.audio) {
-      this.audio.pause();
       this.audio.ontimeupdate = null;
       this.audio.onended = null;
+      if (!this.priming) this.audio.pause();
       if (this.url) {
         URL.revokeObjectURL(this.url);
         this.url = null;

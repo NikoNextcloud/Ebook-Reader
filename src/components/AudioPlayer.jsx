@@ -37,7 +37,7 @@ export default function AudioPlayer({ status, progress, position, remainingMins,
         <button aria-label="Назад 15 секунди" onClick={() => onSkip?.(-15)} disabled={!canSeek}>«15</button>
         {status === 'speaking'
           ? <button className="main-control" onClick={onPause} aria-label="Пауза">Ⅱ</button>
-          : <button className="main-control" onClick={onPlay} disabled={disabled} aria-label="Пусни">▶</button>}
+          : <button className="main-control" onClick={onPlay} disabled={disabled || status === 'loading'} aria-label={status === 'loading' ? 'Гласът се подготвя' : 'Пусни'}>{status === 'loading' ? '…' : '▶'}</button>}
         <button aria-label="Напред 15 секунди" onClick={() => onSkip?.(15)} disabled={!canSeek}>15»</button>
         <button aria-label="Следваща част" onClick={onNext} disabled={!active}>⏭</button>
         <button aria-label="Отметка тук" onClick={onBookmark} disabled={!active} title="Постави отметка">🔖</button>
