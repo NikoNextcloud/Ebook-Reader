@@ -81,6 +81,42 @@
 .remote-name small{margin-top:3px;color:#82918d;font-size:8px}
 .remote-action{justify-self:center;color:#d75e48;font-weight:700;font-size:11px}
 .remote-count{display:block;margin-top:7px;color:#81918c;font-size:9px;text-align:right}
+.source-card{min-width:0;min-height:650px}
+.workspace.source-workspace{grid-template-columns:minmax(0,1fr);max-width:900px}
+.source-step,.source-library{display:flex;flex-direction:column;min-width:0;min-height:590px}
+.source-heading h2,.source-library-head h2{margin:7px 0 0;font-size:24px}
+.source-options{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:24px}
+.source-options>button{min-height:160px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:5px;border:1px solid #d7e0dc;border-radius:8px;padding:16px;background:#fff;color:#244440;text-align:left;transition:border-color .2s,transform .2s,box-shadow .2s}
+.source-options>button:hover{border-color:#ec705a;transform:translateY(-2px);box-shadow:0 10px 24px #163b3a12}
+.source-options>button>span{width:44px;height:44px;display:grid;place-items:center;margin-bottom:auto;border-radius:50%;background:#e5eee9;color:#17413f;font-weight:800}
+.source-options>button:nth-child(2)>span{background:#fff0eb;color:#d45842;padding-left:2px}
+.source-options>button:nth-child(3)>span{background:#173f3d;color:#fff}
+.source-options b{font-size:14px}
+.source-options small{font-size:10px;color:#7d8e89}
+.source-library-head{display:flex;align-items:center;gap:12px}
+.source-library-head>button{flex:0 0 40px;width:40px;height:40px;border:1px solid #d6dfda;border-radius:50%;background:#fff;color:#294744;font-size:18px}
+.source-library-head>div{min-width:0}
+.source-tabs{width:100%;max-width:100%;display:flex;gap:6px;margin:18px 0 0;padding:3px 3px 9px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;scroll-snap-type:x proximity}
+.source-tabs button{flex:0 0 auto;min-height:38px;display:flex;align-items:center;gap:6px;border:1px solid #d8e1dc;border-radius:18px;padding:0 12px;background:#fff;color:#5b706b;font-size:11px;white-space:nowrap;scroll-snap-align:start}
+.source-tabs button small{display:grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:#edf1ee;font-size:8px}
+.source-tabs button.active{background:#173f3d;border-color:#173f3d;color:#fff}
+.source-tabs button.active small{background:#ffffff25;color:#fff}
+.source-search-row{display:grid;grid-template-columns:1fr 42px;align-items:center;gap:8px;margin:7px 0 10px}
+.source-search-row input{min-width:0;height:44px;border:1px solid #ccd8d2;border-radius:8px;padding:0 12px;background:#fff;color:#294744;font-size:12px}
+.source-search-row>span{height:34px;display:grid;place-items:center;border-radius:17px;background:#eef2ee;color:#70837e;font-size:10px}
+.source-books{flex:1;max-height:440px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.source-books>button{width:100%;min-height:60px;display:grid;grid-template-columns:42px minmax(0,1fr) 36px;align-items:center;gap:10px;border:1px solid #dbe3df;border-radius:8px;padding:8px;background:#fff;color:#294744;text-align:left}
+.source-books>button:disabled{opacity:.52}
+.source-book-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:#e5eee9;color:#17413f;font-size:11px;font-weight:700}
+.source-book-icon.audio{background:#fff0eb;color:#d45842;padding-left:2px}
+.source-books>button>span:nth-child(2){min-width:0}
+.source-books b,.source-books small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.source-books b{font-size:12px}
+.source-books small{margin-top:4px;color:#81918c;font-size:9px}
+.source-books i{justify-self:center;color:#d75e48;font-size:17px;font-style:normal}
+.source-books>p{margin:auto;text-align:center;color:#7d8e89;font-size:12px}
+.source-status{min-height:18px;margin:9px 0 0;color:#758681;font-size:10px}
+.source-change{display:block;margin:0 0 8px;border:0;background:transparent;color:#177a63;font-size:11px;padding:0}
 .lang-badge{font-size:11px;color:#7b8e8a;margin:10px 1px 0}
 .lang-badge b{color:#294744}
 .text-card.dragging{outline:2px dashed #ed735e;outline-offset:-6px}
@@ -129,6 +165,13 @@
 :root[data-theme="dark"] .remote-picker-head>button{background:#26332f;color:#cbd5d1}
 :root[data-theme="dark"] .remote-search,
 :root[data-theme="dark"] .remote-results>button{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="dark"] .source-options>button,
+:root[data-theme="dark"] .source-library-head>button,
+:root[data-theme="dark"] .source-tabs button,
+:root[data-theme="dark"] .source-search-row input,
+:root[data-theme="dark"] .source-books>button{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="dark"] .source-tabs button.active{background:#ec705a;border-color:#ec705a;color:#fff}
+:root[data-theme="dark"] .source-search-row>span{background:#26332f;color:#aab7b2}
 :root[data-theme="dark"] .reading-view{background:#1c2416;border-color:#3a4a1e}
 :root[data-theme="dark"] .reading-view p{color:#d5ddd8}
 
@@ -303,6 +346,19 @@ header.minimal{justify-content:flex-end}
   .remote-results{max-height:46svh}
   .remote-results>button{min-height:56px;grid-template-columns:40px minmax(0,1fr) 36px}
   .remote-kind{width:38px;height:38px}
+  .source-card{min-height:calc(100svh - 100px)}
+  .source-step,.source-library{min-height:0}
+  .source-heading h2,.source-library-head h2{font-size:21px}
+  .source-options{grid-template-columns:1fr;margin-top:18px}
+  .source-options>button{min-height:96px;display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto;align-content:center;column-gap:12px;padding:14px}
+  .source-options>button>span{grid-row:1/3;margin:0;width:48px;height:48px}
+  .source-options b{align-self:end}
+  .source-options small{align-self:start}
+  .source-tabs{margin-top:14px}
+  .source-tabs button{min-height:42px}
+  .source-books{max-height:54svh}
+  .source-books>button{min-height:64px;grid-template-columns:44px minmax(0,1fr) 34px}
+  .source-book-icon{width:42px;height:42px}
 
   .now-playing{
     width:100%;

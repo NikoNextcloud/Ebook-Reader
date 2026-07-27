@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractDownloadLinks,
+  extractFourEtiCategories,
   extractFourEtiBookLinks,
   formatRemoteSize,
   isFourEtiUrl,
@@ -38,6 +39,19 @@ describe('remote book links', () => {
     expect(extractFourEtiBookLinks(markdown).map((item) => item.name)).toEqual([
       'Първа книга – Автор',
       'Втора книга – Автор',
+    ]);
+  });
+
+  it('extracts category tabs with counts', () => {
+    const markdown = [
+      '[Промо](https://4eti.me/category/football/)',
+      '*   [Бестселър](https://4eti.me/category/bestseller/) (105)',
+      '*   [История](https://4eti.me/category/istoria/) (91)',
+    ].join('\n');
+    expect(extractFourEtiCategories(markdown).map((item) => item.name)).toEqual([
+      'Нови',
+      'Бестселър',
+      'История',
     ]);
   });
 

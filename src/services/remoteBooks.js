@@ -1,5 +1,6 @@
 const DOCUMENT_RE = /\.(txt|md|markdown|rtf|html?|docx|pdf|epub)$/i;
 const AUDIO_RE = /\.(m4b|m4a|mp3|aac)$/i;
+const fourEtiCache = new Map();
 
 export const MAX_IN_APP_AUDIO_BYTES = 220 * 1024 * 1024;
 
@@ -85,10 +86,53 @@ export const extractFourEtiBookLinks = (markdown) => {
   return result;
 };
 
+export const extractFourEtiCategories = (markdown) => {
+  const categories = [{ id: 'latest', name: 'Нови', url: 'https://4eti.me/' }];
+  const seen = new Set(categories.map((item) => item.url));
+  const categoryRe = /^\s*\*+\s+\[([^\]]+)\]\((https?:\/\/(?:www\.)?4eti\.me\/category\/[^)\s]+)\)\s*\((\d+)\)/gim;
+  let match = categoryRe.exec(markdown);
+  while (match) {
+    const url = cleanLink(match[2].trim());
+    if (!seen.has(url)) {
+      seen.add(url);
+      categories.push({
+        id: `4eti-category-${categories.length}`,
+        name: match[1].trim(),
+        url,
+        count: Number(match[3] || 0),
+      });
+    }
+    match = categoryRe.exec(markdown);
+  }
+  return categories;
+};
+
+const fetchFourEtiMarkdown = async (url) => {
+  if (!fourEtiCache.has(url)) {
+    fourEtiCache.set(url, fetch(`https://r.jina.ai/${url}`).then(async (response) => {
+      if (!response.ok) throw new Error(`4eti.me не отговори (HTTP ${response.status}).`);
+      return response.text();
+    }).catch((error) => {
+      fourEtiCache.delete(url);
+      throw error;
+    }));
+  }
+  return fourEtiCache.get(url);
+};
+
+export const loadFourEtiLibrary = async (url = 'https://4eti.me/') => {
+  const markdown = await fetchFourEtiMarkdown(url);
+  const items = extractFourEtiBookLinks(markdown);
+  if (!items.length) throw new Error('В тази категория не бяха намерени книги.');
+  return {
+    title: '4eti.me',
+    items,
+    categories: extractFourEtiCategories(markdown),
+  };
+};
+
 export const discoverFourEtiPage = async (url) => {
-  const response = await fetch(`https://r.jina.ai/${url}`);
-  if (!response.ok) throw new Error(`4eti.me не отговори (HTTP ${response.status}).`);
-  const markdown = await response.text();
+  const markdown = await fetchFourEtiMarkdown(url);
   const title = markdown.match(/^Title:\s*(.+)$/m)?.[1]?.trim()
     || markdown.match(/^#\s+(.+)$/m)?.[1]?.trim()
     || '4eti.me';
@@ -133,18 +177,29 @@ export const loadMegaCatalog = async (url) => {
 
   if (!nodes.length) throw new Error('В тази Mega връзка няма поддържани книги или аудиокниги.');
 
-  const items = nodes.map((node, index) => ({
-    id: `mega-${index}`,
-    kind: supportedKind(node.name),
-    name: node.name,
-    path: megaPath(node, selected),
-    size: node.size || 0,
-    url: megaChildLink(url, node),
-    provider: 'mega',
-    _node: node,
-  }));
+  const items = nodes.map((node, index) => {
+    const path = megaPath(node, selected);
+    return {
+      id: `mega-${index}`,
+      kind: supportedKind(node.name),
+      name: node.name,
+      path,
+      category: path.includes(' / ') ? path.split(' / ')[0] : 'Други',
+      size: node.size || 0,
+      url: megaChildLink(url, node),
+      provider: 'mega',
+      _node: node,
+    };
+  });
+  const categories = [...new Set(items.map((item) => item.category))]
+    .sort((a, b) => a.localeCompare(b, 'bg'))
+    .map((name, index) => ({
+      id: `mega-category-${index}`,
+      name,
+      count: items.filter((item) => item.category === name).length,
+    }));
 
-  return { title: selected.name || 'Mega', items };
+  return { title: selected.name || 'Mega', items, categories };
 };
 
 const yandexApi = 'https://cloud-api.yandex.net/v1/disk/public/resources';

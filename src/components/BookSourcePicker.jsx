@@ -1,0 +1,244 @@
+import { useMemo, useState } from 'react';
+import {
+  MAX_IN_APP_AUDIO_BYTES,
+  discoverFourEtiPage,
+  downloadRemoteItem,
+  formatRemoteSize,
+  loadFourEtiLibrary,
+  loadMegaCatalog,
+  openRemoteCatalog,
+} from '../services/remoteBooks';
+
+const MEGA_LIBRARY_URL = 'https://mega.nz/folder/A3QgXZTI#1km3sx2JBYE_xIGoDyV_sQ';
+const FOUR_ETI_URL = 'https://4eti.me/';
+const ALL_CATEGORY = { id: 'all', name: 'Всички' };
+
+const documentScore = (item) => {
+  if (/\.docx$/i.test(item.name)) return 0;
+  if (/\.epub$/i.test(item.name)) return 1;
+  if (/\.(txt|rtf|html?|md)$/i.test(item.name)) return 2;
+  if (/\.pdf$/i.test(item.name)) return 3;
+  return 4;
+};
+
+export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
+  const [source, setSource] = useState('');
+  const [catalog, setCatalog] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('');
+  const [search, setSearch] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const visibleItems = useMemo(() => {
+    if (!catalog) return [];
+    const query = search.trim().toLocaleLowerCase('bg-BG');
+    return catalog.items.filter((item) => {
+      const inCategory = source !== 'mega'
+        || !activeCategory
+        || activeCategory === ALL_CATEGORY.name
+        || item.category === activeCategory;
+      const matches = !query
+        || `${item.name} ${item.path || ''}`.toLocaleLowerCase('bg-BG').includes(query);
+      return inCategory && matches;
+    });
+  }, [activeCategory, catalog, search, source]);
+
+  const chooseSource = async (nextSource) => {
+    if (nextSource === 'manual') {
+      onManual();
+      return;
+    }
+
+    setSource(nextSource);
+    setBusy(true);
+    setCatalog(null);
+    setSearch('');
+    setStatus(nextSource === 'mega' ? 'Зареждам Mega библиотеката…' : 'Зареждам 4eti.me…');
+    try {
+      if (nextSource === 'mega') {
+        const loaded = await loadMegaCatalog(MEGA_LIBRARY_URL);
+        setCatalog(loaded);
+        setCategories([ALL_CATEGORY, ...loaded.categories]);
+        setActiveCategory(ALL_CATEGORY.name);
+        setStatus(`${loaded.items.length} аудиокниги`);
+      } else {
+        const loaded = await loadFourEtiLibrary(FOUR_ETI_URL);
+        setCatalog(loaded);
+        setCategories(loaded.categories);
+        setActiveCategory(loaded.categories[0]?.name || 'Нови');
+        setStatus(`${loaded.items.length} книги в „Нови“`);
+      }
+    } catch (error) {
+      setStatus(error.message || 'Библиотеката не може да се зареди.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseCategory = async (category) => {
+    if (busy || category.name === activeCategory) return;
+    setActiveCategory(category.name);
+    setSearch('');
+
+    if (source === 'mega') return;
+    setBusy(true);
+    setStatus(`Зареждам „${category.name}“…`);
+    try {
+      const loaded = await loadFourEtiLibrary(category.url);
+      setCatalog({ ...loaded, categories });
+      setStatus(`${loaded.items.length} книги в „${category.name}“`);
+    } catch (error) {
+      setStatus(error.message || 'Категорията не може да се зареди.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importRemoteItem = async (item) => {
+    if (item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES) {
+      window.open(item.url, '_blank', 'noopener,noreferrer');
+      setStatus('Файлът е твърде голям за паметта на телефона и е отворен в Mega.');
+      return;
+    }
+    if (
+      item.kind === 'audio'
+      && item.size > 80 * 1024 * 1024
+      && !window.confirm(`Аудиокнигата е ${formatRemoteSize(item.size)}. Да я заредя ли в телефона?`)
+    ) return;
+
+    const downloaded = await downloadRemoteItem(item);
+    if (item.kind === 'audio') onAudio(downloaded);
+    else await onDocument(downloaded.file);
+  };
+
+  const chooseFourEtiBook = async (book) => {
+    const discovered = await discoverFourEtiPage(book.url);
+    const candidates = [];
+    for (const sourceItem of discovered.items) {
+      try {
+        // Източниците са малко; проверяваме ги последователно и предпочитаме чист текстов формат.
+        // eslint-disable-next-line no-await-in-loop
+        const resolved = await openRemoteCatalog(sourceItem.url, sourceItem.name);
+        candidates.push(...resolved.items);
+      } catch {
+        // Някои стари публикации сочат към вече недостъпни хранилища.
+      }
+    }
+    if (!candidates.length) throw new Error('За тази книга не беше намерен достъпен PDF, EPUB или DOCX файл.');
+    candidates.sort((a, b) => documentScore(a) - documentScore(b));
+    await importRemoteItem(candidates[0]);
+  };
+
+  const chooseBook = async (item) => {
+    if (busy) return;
+    setBusy(true);
+    setStatus(`Зареждам „${item.name}“…`);
+    try {
+      if (source === '4eti') await chooseFourEtiBook(item);
+      else await importRemoteItem(item);
+    } catch (error) {
+      setStatus(error.message || 'Книгата не може да се зареди.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const backToSources = () => {
+    setSource('');
+    setCatalog(null);
+    setCategories([]);
+    setActiveCategory('');
+    setSearch('');
+    setStatus('');
+  };
+
+  if (!source) {
+    return (
+      <div className="source-step">
+        <div className="source-heading">
+          <span className="eyebrow">01 · ИЗТОЧНИК</span>
+          <h2>Откъде е книгата?</h2>
+        </div>
+        <div className="source-options">
+          <button onClick={() => chooseSource('manual')}>
+            <span>Aa</span>
+            <b>1.1 Моят текст</b>
+            <small>Текст или файл</small>
+          </button>
+          <button onClick={() => chooseSource('mega')}>
+            <span>▶</span>
+            <b>1.2 Mega</b>
+            <small>Аудиокниги</small>
+          </button>
+          <button onClick={() => chooseSource('4eti')}>
+            <span>4</span>
+            <b>1.3 4eti.me</b>
+            <small>Електронни книги</small>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="source-library">
+      <div className="source-library-head">
+        <button onClick={backToSources} aria-label="Назад към източниците">←</button>
+        <div>
+          <span className="eyebrow">02 · {source === 'mega' ? 'MEGA' : '4ETI.ME'}</span>
+          <h2>Избери категория и книга</h2>
+        </div>
+      </div>
+
+      {categories.length > 0 && (
+        <div className="source-tabs" role="tablist" aria-label="Категории">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              role="tab"
+              aria-selected={category.name === activeCategory}
+              className={category.name === activeCategory ? 'active' : ''}
+              onClick={() => chooseCategory(category)}
+            >
+              {category.name}
+              {category.count ? <small>{category.count}</small> : null}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="source-search-row">
+        <input
+          type="search"
+          value={search}
+          placeholder="Търси заглавие или автор"
+          onChange={(event) => setSearch(event.target.value)}
+          disabled={!catalog}
+        />
+        <span>{busy ? '…' : visibleItems.length}</span>
+      </div>
+
+      <div className={`source-books ${busy && !catalog ? 'loading' : ''}`}>
+        {!catalog && <p>{status}</p>}
+        {catalog && visibleItems.slice(0, 100).map((item) => (
+          <button key={item.id} onClick={() => chooseBook(item)} disabled={busy}>
+            <span className={`source-book-icon ${item.kind}`}>{item.kind === 'audio' ? '▶' : 'Aa'}</span>
+            <span>
+              <b>{item.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '')}</b>
+              <small>{[
+                source === 'mega' ? item.category : activeCategory,
+                formatRemoteSize(item.size),
+              ].filter(Boolean).join(' · ')}</small>
+            </span>
+            <i>{item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES ? 'Mega' : '›'}</i>
+          </button>
+        ))}
+        {catalog && !visibleItems.length && !busy && <p>Няма книги по това търсене.</p>}
+      </div>
+
+      <p className="source-status" role="status">{busy ? 'Зареждам…' : status}</p>
+    </div>
+  );
+}

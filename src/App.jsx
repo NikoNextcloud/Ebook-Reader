@@ -64,6 +64,7 @@ export default function App() {
   const [stats, setStats] = useState(() => getStats());
   const [voiceEnergy, setVoiceEnergy] = useState(0);
   const [audioBook, setAudioBook] = useState(null);
+  const [editorReady, setEditorReady] = useState(false);
 
   const ambient = useRef(new AmbientAudio());
   const tts = useRef(new GeminiTTS());
@@ -96,6 +97,9 @@ export default function App() {
   useEffect(() => { activeChapterRef.current = activeChapter; }, [activeChapter]);
   useEffect(() => { chapterModeRef.current = chapterMode; }, [chapterMode]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
+  useEffect(() => {
+    if (view !== 'create') setEditorReady(false);
+  }, [view]);
 
   useEffect(() => () => {
     tts.current.stop();
@@ -528,9 +532,9 @@ export default function App() {
             </div>
             <div className="orb" aria-hidden="true"><i /><i /><i /><span>▶</span></div>
           </section>
-          <div className="workspace">
-            <TextInput text={text} setText={setText} onLoaded={onLoaded} onAudioLoaded={openAudioBook} />
-            <aside className="card settings">
+          <div className={`workspace ${editorReady ? '' : 'source-workspace'}`}>
+            <TextInput text={text} setText={setText} onLoaded={onLoaded} onAudioLoaded={openAudioBook} onEditorMode={setEditorReady} />
+            {editorReady && <aside className="card settings">
               <Library
                 books={books}
                 activeId={currentBookId}
@@ -565,7 +569,7 @@ export default function App() {
                 </button>
                 <button className="save-book" onClick={saveCurrent} disabled={!text.trim()} title="Запази в библиотеката">★</button>
               </div>
-            </aside>
+            </aside>}
           </div>
         </main>
       )}
