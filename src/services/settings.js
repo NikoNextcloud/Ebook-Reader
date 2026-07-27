@@ -2,8 +2,6 @@
 const KEY = 'voxora_settings';
 
 const defaults = {
-  ttsEngine: 'gemini',
-  browserVoice: '',
   voice: 'Kore',
   gender: 'female',
   rate: 1,

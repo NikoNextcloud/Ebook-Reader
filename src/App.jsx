@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TextInput from './components/TextInput';
 import VoiceSelector from './components/VoiceSelector';
-import SpeechEngineSelector from './components/SpeechEngineSelector';
 import SpeedControl from './components/SpeedControl';
 import MusicSelector from './components/MusicSelector';
 import SleepTimer from './components/SleepTimer';
@@ -18,7 +17,6 @@ import {
   GeminiTTS,
   splitTextForSpeech,
 } from './services/geminiTtsService';
-import { BrowserTTS } from './services/browserTtsService';
 import {
   loadBooks, saveBook, saveAudioBook, updatePosition, updateAudioPosition,
   updateTitle, removeBook, makeTitle, setBookField, addBookmark, removeBookmark,
@@ -40,8 +38,6 @@ export default function App() {
   const startBooks = useRef(loadBooks()).current;
   const [view, setView] = useState(startBooks.length ? 'home' : 'create');
   const [text, setTextState] = useState(sample);
-  const [ttsEngine, setTtsEngine] = useState(initial.ttsEngine);
-  const [browserVoice, setBrowserVoice] = useState(initial.browserVoice);
   const [voice, setVoice] = useState(initial.voice);
   const [gender, setGender] = useState(initial.gender);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
@@ -74,13 +70,9 @@ export default function App() {
   const [editorReady, setEditorReady] = useState(false);
 
   const ambient = useRef(new AmbientAudio());
-  const geminiTts = useRef(new GeminiTTS());
-  const browserTts = useRef(new BrowserTTS());
-  const geminiPreviewTts = useRef(new GeminiTTS());
-  const browserPreviewTts = useRef(new BrowserTTS());
+  const tts = useRef(new GeminiTTS());
+  const previewTts = useRef(new GeminiTTS());
   const downloadTts = useRef(new GeminiTTS());
-  const tts = ttsEngine === 'browser' ? browserTts : geminiTts;
-  const previewTts = ttsEngine === 'browser' ? browserPreviewTts : geminiPreviewTts;
   const fileTitle = useRef('');
   const chaptersRef = useRef(null);
   const activeChapterRef = useRef(0);
@@ -113,19 +105,15 @@ export default function App() {
   }, [view]);
 
   useEffect(() => () => {
-    geminiTts.current.stop();
-    browserTts.current.stop();
-    geminiPreviewTts.current.stop();
-    browserPreviewTts.current.stop();
+    tts.current.stop();
+    previewTts.current.stop();
     downloadTts.current.stop();
     ambient.current.stop();
     audioBookUrls.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
   useEffect(() => ambient.current.setVolume(volume), [volume]);
   useEffect(() => localStorage.setItem('gemini_api_key', apiKey), [apiKey]);
-  useEffect(() => saveSettings({
-    ttsEngine, browserVoice, voice, gender, rate, music, genre, volume, theme,
-  }), [ttsEngine, browserVoice, voice, gender, rate, music, genre, volume, theme]);
+  useEffect(() => saveSettings({ voice, gender, rate, music, genre, volume, theme }), [voice, gender, rate, music, genre, volume, theme]);
   useEffect(() => {
     const root = document.documentElement;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -164,12 +152,12 @@ export default function App() {
 
   const beginPlayback = async (sourceText, startChunk, bookId) => {
     if (!sourceText.trim()) return;
-    if (ttsEngine === 'gemini' && !apiKey.trim()) { setMessage('Добави Gemini API ключа, за да използваш AI гласовете.'); setPlayerOpen(false); return; }
+    if (!apiKey.trim()) { setMessage('Добави Gemini API ключа, за да използваш AI гласовете.'); setPlayerOpen(false); return; }
 
     previewTts.current.stop();
     setPreviewing('');
     setPlayerOpen(true);
-    setMessage(ttsEngine === 'browser' ? 'Гласът на устройството се подготвя…' : 'AI гласът се подготвя…');
+    setMessage('AI гласът се подготвя…');
     setStatus('loading');
     setProgress(0);
     setActiveChunk(startChunk || 0);
@@ -180,7 +168,6 @@ export default function App() {
       await tts.current.generate(sourceText, {
         apiKey: apiKey.trim(),
         voiceName: voice,
-        browserVoiceName: browserVoice,
         gender,
         alternateVoices: true,
         rate,
@@ -301,20 +288,14 @@ export default function App() {
   const retry = () => beginPlayback(text, tts.current.currentChunk || 0, currentBookId);
 
   const preview = async (name) => {
-    if (ttsEngine === 'gemini' && !apiKey.trim()) { setMessage('Добави Gemini API ключ, за да чуеш гласа.'); return; }
+    if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да чуеш гласа.'); return; }
     previewTts.current.stop();
     setPreviewing(name);
     setVoice(name);
     try {
       await previewTts.current.unlockAudio().catch(() => {});
       await previewTts.current.generate('Здравей! Аз съм твоят разказвач. Така ще звучи текстът, който избереш.', {
-        apiKey: apiKey.trim(),
-        voiceName: name,
-        browserVoiceName: name,
-        rate: 1,
-        language,
-        singleChunk: true,
-        onEnd: () => setPreviewing(''),
+        apiKey: apiKey.trim(), voiceName: name, rate: 1, language, singleChunk: true, onEnd: () => setPreviewing(''),
       });
     } catch (error) {
       setMessage(error.message || 'Пробата на гласа не може да се зареди.');
@@ -329,18 +310,6 @@ export default function App() {
   const next = () => tts.current.next();
   const prev = () => tts.current.prev();
   const changeSpeed = (value) => { setRate(value); tts.current.setPlaybackRate(value); };
-  const changeTtsEngine = (next) => {
-    geminiTts.current.stop();
-    browserTts.current.stop();
-    geminiPreviewTts.current.stop();
-    browserPreviewTts.current.stop();
-    ambient.current.stop();
-    setStatus('idle');
-    setMessage('');
-    setPreviewing('');
-    setVoiceEnergy(0);
-    setTtsEngine(next);
-  };
   const cycleTheme = () => setTheme((current) => THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]);
 
   // ——— Отметки ———
@@ -504,7 +473,7 @@ export default function App() {
     setProgress(0);
     setPosition(null);
     setActiveChunk(-1);
-    if (ttsEngine === 'browser' || apiKey.trim()) beginPlayback(chapters[index].text, 0, currentBookId);
+    if (apiKey.trim()) beginPlayback(chapters[index].text, 0, currentBookId);
   };
   const toggleCurrentFavorite = () => {
     const record = ensureSaved();
@@ -519,10 +488,6 @@ export default function App() {
   // ——— Сваляне / офлайн / резервно копие ———
   const download = async () => {
     if (!text.trim()) return;
-    if (ttsEngine === 'browser') {
-      setMessage('Edge/системният глас може да чете, но браузърът не позволява да бъде свален като WAV файл. За сваляне избери AI гласове.');
-      return;
-    }
     if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш аудиото.'); return; }
     setDownloading(true);
     setMessage('Подготвям аудио файла…');
@@ -547,10 +512,6 @@ export default function App() {
 
   const cacheOffline = async () => {
     if (!text.trim()) return;
-    if (ttsEngine === 'browser') {
-      setMessage('Офлайн наличността на този глас се управлява от телефона или Edge. За офлайн WAV кеш избери AI гласове.');
-      return;
-    }
     if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш книгата офлайн.'); return; }
     setCaching(true);
     setCacheProgress(0);
@@ -616,7 +577,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [status, text, apiKey, voice, browserVoice, ttsEngine, rate, language, music]);
+  }, [status, text, apiKey, voice, rate, language, music]);
 
   // ——— Медийни контроли ———
   useEffect(() => {
@@ -624,8 +585,8 @@ export default function App() {
     try {
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title: currentBook?.title || 'Voxora',
-        artist: currentBook?.author || `Глас ${ttsEngine === 'browser' ? browserVoice || 'устройство' : voice}`,
-        album: ttsEngine === 'browser' ? 'Voxora Device Reader' : 'Voxora AI Reader',
+        artist: currentBook?.author || `Глас ${voice}`,
+        album: 'Voxora AI Reader',
       });
     } catch { /* MediaMetadata може да липсва */ }
     navigator.mediaSession.playbackState = status === 'speaking' ? 'playing' : status === 'paused' ? 'paused' : 'none';
@@ -641,7 +602,7 @@ export default function App() {
     Object.entries(handlers).forEach(([action, handler]) => {
       try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* неподдържано */ }
     });
-  }, [status, currentBookId, voice, browserVoice, ttsEngine, books]);
+  }, [status, currentBookId, voice, books]);
 
   const wordFraction = position && position.chunk === activeChunk && position.chunkDuration
     ? position.chunkTime / position.chunkDuration
@@ -654,7 +615,7 @@ export default function App() {
           {view === 'create' && books.length > 0 && (
             <button className="nav-home" onClick={() => { setView('home'); setStats(getStats()); }}>← Библиотека</button>
           )}
-          <span className="status-dot">● {ttsEngine === 'browser' ? 'Edge / глас от устройството' : 'Gemini AI Audio'}</span>
+          <span className="status-dot">● Gemini AI Audio</span>
           <button className="theme-toggle" onClick={cycleTheme} aria-label={`Тема: ${theme}`} title={`Тема: ${theme}`}>{THEME_ICON[theme]}</button>
           <button className="profile" aria-label="Профил">В</button>
         </div>
@@ -697,23 +658,13 @@ export default function App() {
                 onRemoveBookmark={deleteBookmark}
               />
               <ChapterSelector chapters={chapters} active={activeChapter} onSelect={selectChapter} />
-              <SpeechEngineSelector
-                engine={ttsEngine}
-                onEngine={changeTtsEngine}
-                browserVoice={browserVoice}
-                onBrowserVoice={setBrowserVoice}
-                onPreview={preview}
-                previewing={previewing}
-              />
-              {ttsEngine === 'gemini' && (
-                <VoiceSelector selected={voice} onSelect={setVoice} gender={gender} onGender={setGender} apiKey={apiKey} onApiKey={setApiKey} onPreview={preview} previewing={previewing} />
-              )}
+              <VoiceSelector selected={voice} onSelect={setVoice} gender={gender} onGender={setGender} apiKey={apiKey} onApiKey={setApiKey} onPreview={preview} previewing={previewing} />
               {text.trim() && <p className="lang-badge">Разпознат език: <b>{langLabel(language)}</b></p>}
               <SpeedControl value={rate} onChange={setRate} />
               <MusicSelector enabled={music} setEnabled={setMusic} genre={genre} setGenre={setGenre} volume={volume} setVolume={setVolume} />
               <SleepTimer minutes={sleepMinutes} onChange={setSleepMinutes} remaining={sleepRemaining} chapterMode={chapterMode} onChapterMode={setChapterMode} hasChapters={!!(chapters && chapters.length > 1)} />
               <StoragePanel hasText={!!text.trim()} caching={caching} cacheProgress={cacheProgress} onCacheOffline={cacheOffline} onClearCache={clearCache} onExport={exportLib} onImport={importLib} />
-              {heavy && ttsEngine === 'gemini' && <p className="quota-note">⚠ Дълъг текст: ~{chunks.length} AI заявки (~{mins} мин. звук). Може да изразходи дневния лимит наведнъж.</p>}
+              {heavy && <p className="quota-note">⚠ Дълъг текст: ~{chunks.length} AI заявки (~{mins} мин. звук). Може да изразходи дневния лимит наведнъж.</p>}
               {message && (
                 <p className={`app-message ${status === 'error' ? 'error' : ''}`}>
                   {message}
@@ -724,7 +675,7 @@ export default function App() {
                 <button className="start" disabled={!text.trim() || status === 'loading'} onClick={() => speak(true)}>
                   <span>{status === 'loading' ? '…' : '▶'}</span>
                   <div>
-                    <b>{status === 'loading' ? (ttsEngine === 'browser' ? 'Подготвям гласа…' : 'Генерирам AI гласа…') : 'Започни четенето'}</b>
+                    <b>{status === 'loading' ? 'Генерирам AI гласа…' : 'Започни четенето'}</b>
                     <small>{words} думи · около {mins} мин.</small>
                   </div>
                 </button>
@@ -815,7 +766,7 @@ export default function App() {
           onListening={(seconds) => addListening(seconds)}
         />
       )}
-      {view === 'create' && <footer>VOXORA · {ttsEngine === 'browser' ? 'гласове от устройството' : 'Gemini AI гласове'}</footer>}
+      {view === 'create' && <footer>VOXORA · Gemini AI гласове</footer>}
     </>
   );
 }
