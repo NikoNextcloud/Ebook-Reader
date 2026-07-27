@@ -44,35 +44,105 @@ export const parseRange = (header, size) => {
   return { start, end, partial: true };
 };
 
+// Отварянето на Mega връзка изисква мрежова заявка. Пазим готовия файл за
+// кратко, защото плеърът прави много Range заявки към един и същ адрес.
+const fileCache = new Map();
+const FILE_TTL = 10 * 60 * 1000;
+
+// Връзките от папка изглеждат така: /folder/<id>#<ключ>/file/<childId>.
+// Ако File.fromURL не се справи, отваряме папката и намираме детето.
+const resolveMegaFile = async (url) => {
+  const cached = fileCache.get(url);
+  if (cached && Date.now() - cached.at < FILE_TTL) return cached.file;
+
+  const { File: MegaFile } = await import('megajs');
+  let file = null;
+
+  try {
+    const direct = MegaFile.fromURL(url);
+    await direct.loadAttributes();
+    if (direct.size) file = direct;
+  } catch {
+    file = null;
+  }
+
+  if (!file) {
+    const parsed = new URL(url);
+    const childId = parsed.hash.match(/\/file\/([^/?#]+)/i)?.[1];
+    const folderId = parsed.pathname.match(/\/folder\/([^/]+)/i)?.[1];
+    const key = parsed.hash.slice(1).split('/')[0];
+    if (!childId || !folderId || !key) throw new Error('UNSUPPORTED_LINK');
+
+    const folder = MegaFile.fromURL(`https://mega.nz/folder/${folderId}#${key}`);
+    await folder.loadAttributes();
+    const nodes = folder.children || [];
+    const match = nodes.find((node) => {
+      const id = Array.isArray(node.downloadId) ? node.downloadId.at(-1) : node.downloadId;
+      return id === childId;
+    });
+    if (!match) throw new Error('FILE_NOT_FOUND');
+    file = match;
+  }
+
+  fileCache.set(url, { file, at: Date.now() });
+  return file;
+};
+
 export async function GET(request) {
   const source = new URL(request.url).searchParams.get('url') || '';
   if (!isMegaUrl(source)) return new Response('Неподдържан източник.', { status: 400 });
 
+  let file;
   try {
-    const { File: MegaFile } = await import('megajs');
-    const file = MegaFile.fromURL(source);
-    await file.loadAttributes();
+    file = await resolveMegaFile(source);
+  } catch (error) {
+    // Ясна причина вместо мълчалив 502 — иначе плеърът показва подвеждащо
+    // „телефонът блокира звука“, когато проблемът е в източника.
+    return new Response(`Аудиото не може да се отвори: ${error.message || 'няма достъп'}`, { status: 502 });
+  }
 
-    const size = file.size || 0;
-    if (!size) return new Response('Файлът не е наличен.', { status: 404 });
+  const size = file.size || 0;
+  if (!size) return new Response('Файлът не е наличен.', { status: 404 });
 
-    const range = parseRange(request.headers.get('range'), size);
-    if (!range) {
-      return new Response('Невалиден диапазон.', {
-        status: 416,
-        headers: { 'Content-Range': `bytes */${size}` },
+  const rangeHeader = request.headers.get('range');
+  const type = contentTypeFor(file.name);
+
+  // Без Range заглавие отговорът трябва да е 200 с пълната дължина. Safari е
+  // строг: 206 на заявка без Range се смята за невалидна и медията не тръгва.
+  if (!rangeHeader) {
+    try {
+      const body = Readable.toWeb(file.download({}));
+      return new Response(body, {
+        status: 200,
+        headers: {
+          'Content-Type': type,
+          'Content-Length': String(size),
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'private, max-age=3600',
+          'X-Content-Type-Options': 'nosniff',
+        },
       });
+    } catch {
+      return new Response('Аудиото не може да се пусне в момента.', { status: 502 });
     }
+  }
 
+  const range = parseRange(rangeHeader, size);
+  if (!range) {
+    return new Response('Невалиден диапазон.', {
+      status: 416,
+      headers: { 'Content-Range': `bytes */${size}`, 'Accept-Ranges': 'bytes' },
+    });
+  }
+
+  try {
     const { start, end } = range;
-    const stream = file.download({ start, end });
-    const body = Readable.toWeb(stream);
+    const body = Readable.toWeb(file.download({ start, end }));
 
     return new Response(body, {
-      // Винаги 206 — така плеърът знае, че може да прескача напред/назад.
       status: 206,
       headers: {
-        'Content-Type': contentTypeFor(file.name),
+        'Content-Type': type,
         'Content-Length': String(end - start + 1),
         'Content-Range': `bytes ${start}-${end}/${size}`,
         'Accept-Ranges': 'bytes',
@@ -91,9 +161,7 @@ export async function HEAD(request) {
   if (!isMegaUrl(source)) return new Response(null, { status: 400 });
 
   try {
-    const { File: MegaFile } = await import('megajs');
-    const file = MegaFile.fromURL(source);
-    await file.loadAttributes();
+    const file = await resolveMegaFile(source);
     return new Response(null, {
       status: 200,
       headers: {

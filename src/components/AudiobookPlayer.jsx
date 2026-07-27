@@ -12,6 +12,27 @@ const fmt = (seconds) => {
     : `${minutes}:${String(rest).padStart(2, '0')}`;
 };
 
+// Обяснява защо аудиото не тръгва: проверява грешката на плеъра и, ако е нужно,
+// пита сървъра какво отговаря — така не обвиняваме телефона напразно.
+const describeAudioProblem = async (audio, url) => {
+  const code = audio?.error?.code;
+  if (code === 4) {
+    try {
+      const probe = await fetch(url, { headers: { Range: 'bytes=0-1' } });
+      if (!probe.ok && probe.status !== 206) {
+        const detail = await probe.text().catch(() => '');
+        return `Източникът не дава аудиото (HTTP ${probe.status})${detail ? ` · ${detail.slice(0, 160)}` : ''}.`;
+      }
+      return 'Форматът на тази аудиокнига не се поддържа от браузъра.';
+    } catch {
+      return 'Няма връзка с източника на аудиото.';
+    }
+  }
+  if (code === 2) return 'Връзката прекъсна при зареждането на аудиото. Опитай отново.';
+  if (code === 3) return 'Аудиофайлът е повреден или непълен.';
+  return 'Аудиото не може да се пусне в момента.';
+};
+
 export default function AudiobookPlayer({
   book,
   onClose,
@@ -102,8 +123,14 @@ export default function AudiobookPlayer({
     try {
       await audio.play();
       setMessage('');
-    } catch {
-      setMessage('Телефонът блокира звука. Отвори страницата в Safari или Chrome и натисни Play отново.');
+    } catch (error) {
+      // Само NotAllowedError значи, че телефонът е блокирал звука. При всичко
+      // друго проблемът е в самия файл/поток и трябва да го кажем честно.
+      if (error?.name === 'NotAllowedError') {
+        setMessage('Телефонът блокира звука. Натисни Play още веднъж.');
+        return;
+      }
+      setMessage(await describeAudioProblem(audio, book.audioUrl));
     }
   };
 

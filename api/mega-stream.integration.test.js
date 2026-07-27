@@ -10,8 +10,9 @@ vi.mock('megajs', () => ({
       name: 'kniga.m4b',
       size: SIZE,
       loadAttributes: async () => {},
-      download: ({ start, end }) => {
+      download: ({ start, end } = {}) => {
         calls.push({ start, end });
+        if (start === undefined) return Readable.from([Buffer.alloc(1024, 7)]);
         return Readable.from([Buffer.alloc(end - start + 1, 7)]);
       },
     }),
@@ -31,16 +32,24 @@ describe('/api/mega-stream', () => {
     expect(res.status).toBe(400);
   });
 
-  it('връща 206 с правилни заглавия за превъртане', async () => {
+  it('без Range връща 200 с пълната дължина (Safari отхвърля 206 тук)', async () => {
     const res = await GET(req(target(OK)));
-    expect(res.status).toBe(206);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-length')).toBe(String(SIZE));
     expect(res.headers.get('accept-ranges')).toBe('bytes');
     expect(res.headers.get('content-type')).toBe('audio/mp4');
+    expect(res.headers.get('content-range')).toBeNull();
+  });
+
+  it('с Range връща 206 с правилни заглавия за превъртане', async () => {
+    const res = await GET(req(target(OK), { range: 'bytes=0-' }));
+    expect(res.status).toBe(206);
+    expect(res.headers.get('accept-ranges')).toBe('bytes');
     expect(res.headers.get('content-range')).toBe(`bytes 0-${8 * 1024 * 1024 - 1}/${SIZE}`);
   });
 
   it('тегли само поискания прозорец, а не целия файл', async () => {
-    await GET(req(target(OK)));
+    await GET(req(target(OK), { range: 'bytes=0-' }));
     expect(calls[0].start).toBe(0);
     expect(calls[0].end - calls[0].start + 1).toBe(8 * 1024 * 1024);
   });
