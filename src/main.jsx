@@ -7,5 +7,7 @@ import './improvements.css';
 import './ai-controls.css';
 import './listening-overlay.css';
 import './voice-preview.css';
+import './reading-highlight.css';
+import './enhancements.css';
 registerSW({immediate:true});
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
