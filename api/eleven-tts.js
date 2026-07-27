@@ -100,9 +100,17 @@ export async function POST(request) {
     );
 
     if (!upstream.ok || !upstream.body) {
-      if (upstream.status === 401) return json({ message: 'ElevenLabs ключът е невалиден.' }, 401);
-      if (upstream.status === 429) return json({ message: 'ElevenLabs лимитът е изчерпан.' }, 429);
-      return json({ message: 'ElevenLabs не успя да генерира гласа.' }, 502);
+      // Показваме и обяснението на ElevenLabs — иначе „ключът е невалиден“
+      // се появява и когато проблемът е права, кредити или изтекъл абонамент.
+      const detail = await upstream.text().catch(() => '');
+      const short = detail ? ` · ${detail.slice(0, 300)}` : '';
+      if (upstream.status === 401 || upstream.status === 403) {
+        return json({
+          message: `ElevenLabs отказа ключа (HTTP ${upstream.status})${short}. Провери правата на ключа и дали проектът е преразгърнат след добавянето му.`,
+        }, 401);
+      }
+      if (upstream.status === 429) return json({ message: `ElevenLabs лимитът е изчерпан${short}.` }, 429);
+      return json({ message: `ElevenLabs не успя да генерира гласа (HTTP ${upstream.status})${short}.` }, 502);
     }
 
     return new Response(upstream.body, {

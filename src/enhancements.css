@@ -142,47 +142,47 @@
 }
 
 /* ——— Тъмна тема ——— */
-:root[data-theme="dark"]{background:#0f1a1a;color:#e7ece9}
-:root[data-theme="dark"] body{background:radial-gradient(circle at 85% 8%,#17302b 0,transparent 25%),#0f1a1a;color:#e7ece9}
-:root[data-theme="dark"] html{background:#0f1a1a;color:#e7ece9}
-:root[data-theme="dark"] .card,
-:root[data-theme="dark"] .settings{background:#16211f;border-color:#26332f;color:#e7ece9}
-:root[data-theme="dark"] textarea,
-:root[data-theme="dark"] .url-row input,
-:root[data-theme="dark"] .api-key-field input,
-:root[data-theme="dark"] .library-edit{background:#0f1a1a;color:#e7ece9;border-color:#2c3a36}
-:root[data-theme="dark"] h1,
-:root[data-theme="dark"] h2,
-:root[data-theme="dark"] h3,
-:root[data-theme="dark"] .brand{color:#f1f4f2}
-:root[data-theme="dark"] .control-section{border-color:#243230}
-:root[data-theme="dark"] .ai-voice-card,
-:root[data-theme="dark"] .library-item,
-:root[data-theme="dark"] .chapter-list button,
-:root[data-theme="dark"] .sleep-options button,
-:root[data-theme="dark"] .gender-picker button{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
-:root[data-theme="dark"] .ai-voice-card.active,
-:root[data-theme="dark"] .library-item.active,
-:root[data-theme="dark"] .chapter-list button.active,
-:root[data-theme="dark"] .sleep-options button.active{background:#2a1f1c;border-color:#ed735e}
-:root[data-theme="dark"] .theme-toggle{border-color:#2c3a36}
-:root[data-theme="dark"] .upload.ghost{border-color:#2c3a36;color:#dbe3e0}
-:root[data-theme="dark"] .remote-picker{background:#111c1a;border-color:#2c3a36}
-:root[data-theme="dark"] .remote-picker-head>button{background:#26332f;color:#cbd5d1}
-:root[data-theme="dark"] .remote-search,
-:root[data-theme="dark"] .remote-results>button{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
-:root[data-theme="dark"] .source-options>button,
-:root[data-theme="dark"] .source-library-head>button,
-:root[data-theme="dark"] .source-tabs button,
-:root[data-theme="dark"] .source-search-row input,
-:root[data-theme="dark"] .source-search-row>button,
-:root[data-theme="dark"] .source-book-open,
-:root[data-theme="dark"] .source-book-favorite{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
-:root[data-theme="dark"] .source-book-favorite.on{background:#5a2d27;border-color:#a85847;color:#ffb19f}
-:root[data-theme="dark"] .source-tabs button.active{background:#ec705a;border-color:#ec705a;color:#fff}
-:root[data-theme="dark"] .source-search-row>span{background:#26332f;color:#aab7b2}
-:root[data-theme="dark"] .reading-view{background:#1c2416;border-color:#3a4a1e}
-:root[data-theme="dark"] .reading-view p{color:#d5ddd8}
+:root[data-theme="premium"]{background:#0f1a1a;color:#e7ece9}
+:root[data-theme="premium"] body{background:radial-gradient(circle at 85% 8%,#17302b 0,transparent 25%),#0f1a1a;color:#e7ece9}
+:root[data-theme="premium"] html{background:#0f1a1a;color:#e7ece9}
+:root[data-theme="premium"] .card,
+:root[data-theme="premium"] .settings{background:#16211f;border-color:#26332f;color:#e7ece9}
+:root[data-theme="premium"] textarea,
+:root[data-theme="premium"] .url-row input,
+:root[data-theme="premium"] .api-key-field input,
+:root[data-theme="premium"] .library-edit{background:#0f1a1a;color:#e7ece9;border-color:#2c3a36}
+:root[data-theme="premium"] h1,
+:root[data-theme="premium"] h2,
+:root[data-theme="premium"] h3,
+:root[data-theme="premium"] .brand{color:#f1f4f2}
+:root[data-theme="premium"] .control-section{border-color:#243230}
+:root[data-theme="premium"] .ai-voice-card,
+:root[data-theme="premium"] .library-item,
+:root[data-theme="premium"] .chapter-list button,
+:root[data-theme="premium"] .sleep-options button,
+:root[data-theme="premium"] .gender-picker button{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="premium"] .ai-voice-card.active,
+:root[data-theme="premium"] .library-item.active,
+:root[data-theme="premium"] .chapter-list button.active,
+:root[data-theme="premium"] .sleep-options button.active{background:#2a1f1c;border-color:#ed735e}
+:root[data-theme="premium"] .theme-toggle{border-color:#2c3a36}
+:root[data-theme="premium"] .upload.ghost{border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="premium"] .remote-picker{background:#111c1a;border-color:#2c3a36}
+:root[data-theme="premium"] .remote-picker-head>button{background:#26332f;color:#cbd5d1}
+:root[data-theme="premium"] .remote-search,
+:root[data-theme="premium"] .remote-results>button{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="premium"] .source-options>button,
+:root[data-theme="premium"] .source-library-head>button,
+:root[data-theme="premium"] .source-tabs button,
+:root[data-theme="premium"] .source-search-row input,
+:root[data-theme="premium"] .source-search-row>button,
+:root[data-theme="premium"] .source-book-open,
+:root[data-theme="premium"] .source-book-favorite{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="premium"] .source-book-favorite.on{background:#5a2d27;border-color:#a85847;color:#ffb19f}
+:root[data-theme="premium"] .source-tabs button.active{background:#ec705a;border-color:#ec705a;color:#fff}
+:root[data-theme="premium"] .source-search-row>span{background:#26332f;color:#aab7b2}
+:root[data-theme="premium"] .reading-view{background:#1c2416;border-color:#3a4a1e}
+:root[data-theme="premium"] .reading-view p{color:#d5ddd8}
 
 /* ——— Хедър без лого (само дясната част) ——— */
 header.minimal{justify-content:flex-end}
@@ -209,9 +209,9 @@ header.minimal{justify-content:flex-end}
 .reading-view .active-chunk .current-word{background:#ffe45c;color:#2b312f;border-radius:4px;padding:1px 2px;font-weight:700}
 .reading-view .active-chunk .read-word{color:#9aa39f}
 
-:root[data-theme="dark"] .bookmark-chip{background:#2a1f1c;border-color:#4a352f}
-:root[data-theme="dark"] .quota-note{background:#2a2416;border-color:#4a3f22;color:#e0c78a}
-:root[data-theme="dark"] .storage-row{color:#9aa9a4}
+:root[data-theme="premium"] .bookmark-chip{background:#2a1f1c;border-color:#4a352f}
+:root[data-theme="premium"] .quota-note{background:#2a2416;border-color:#4a3f22;color:#e0c78a}
+:root[data-theme="premium"] .storage-row{color:#9aa9a4}
 
 /* ═══════ STORYTEL-СТИЛ: начален екран ═══════ */
 .nav-home{border:1px solid #cdd6d1;background:transparent;color:inherit;border-radius:20px;padding:6px 12px;font-size:12px;cursor:pointer}
@@ -441,10 +441,10 @@ header.minimal{justify-content:flex-end}
 }
 
 /* ——— Тъмна тема за началния екран ——— */
-:root[data-theme="dark"] .stats-bar .stat{background:#16211f;border-color:#26332f}
-:root[data-theme="dark"] .stats-bar .stat b{color:#e7ece9}
-:root[data-theme="dark"] .book-actions button{background:#1c2b28;border-color:#2c3a36;color:#9aa9a4}
-:root[data-theme="dark"] .nav-home{border-color:#2c3a36}
+:root[data-theme="premium"] .stats-bar .stat{background:#16211f;border-color:#26332f}
+:root[data-theme="premium"] .stats-bar .stat b{color:#e7ece9}
+:root[data-theme="premium"] .book-actions button{background:#1c2b28;border-color:#2c3a36;color:#9aa9a4}
+:root[data-theme="premium"] .nav-home{border-color:#2c3a36}
 
 /* Voxora brand mark in the persistent app header. */
 header.minimal{justify-content:space-between;gap:16px}
@@ -741,10 +741,10 @@ header.minimal{justify-content:space-between;gap:16px}
 .book-more:hover{background:#eef1ee}
 .cover-badge{position:absolute;top:8px;right:8px;font-size:12px;background:#0d2928cc;border-radius:8px;padding:2px 5px}
 
-:root[data-theme="dark"] .continue-card{background:#16211f;border-color:#26332f}
-:root[data-theme="dark"] .continue-bar{background:#26332f}
-:root[data-theme="dark"] .library-search{background:#16211f;border-color:#2c3a36}
-:root[data-theme="dark"] .book-more:hover{background:#22302c}
+:root[data-theme="premium"] .continue-card{background:#16211f;border-color:#26332f}
+:root[data-theme="premium"] .continue-bar{background:#26332f}
+:root[data-theme="premium"] .library-search{background:#16211f;border-color:#2c3a36}
+:root[data-theme="premium"] .book-more:hover{background:#22302c}
 
 @media (max-width:640px){
   .home{padding:14px 14px 150px}
@@ -789,4 +789,330 @@ header.minimal{justify-content:space-between;gap:16px}
 .alt-voices input{margin-top:2px;width:18px;height:18px;accent-color:#ec705a;flex:none}
 .alt-voices b{display:block;font-size:12px;font-weight:600}
 .alt-voices small{display:block;font-size:10px;color:#83918e;margin-top:2px}
-:root[data-theme="dark"] .alt-voices{background:#16211f;border-color:#2c3a36}
+:root[data-theme="premium"] .alt-voices{background:#16211f;border-color:#2c3a36}
+
+/* ═══════════════════════════════════════════════════════════
+   ЕДИНСТВЕНА ПРЕМИУМ ТЕМА
+   Дълбок смарагд + топло злато/корал. Без превключвател.
+   Всички стойности са проверени за четим контраст.
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  --bg:#0b1614;
+  --bg-soft:#101f1d;
+  --surface:#142623;
+  --surface-2:#1a302c;
+  --line:#24403a;
+  --line-soft:#1e3531;
+  --text:#eef4f1;
+  --text-dim:#a8bcb6;
+  --text-faint:#7d938d;
+  --accent:#e8785d;
+  --accent-soft:#2a1d1a;
+  --gold:#e3b778;
+  --ok:#5fbf9c;
+}
+
+:root[data-theme="premium"],
+:root[data-theme="premium"] body{
+  background:
+    radial-gradient(1100px 620px at 82% -8%, #1b3a35 0%, transparent 62%),
+    radial-gradient(760px 460px at 6% 6%, #16302c 0%, transparent 58%),
+    var(--bg);
+  background-attachment:fixed;
+  color:var(--text);
+}
+
+/* Повърхности */
+:root[data-theme="premium"] .card,
+:root[data-theme="premium"] .settings,
+:root[data-theme="premium"] .stats-bar .stat,
+:root[data-theme="premium"] .continue-card{
+  background:linear-gradient(180deg,var(--surface) 0%,var(--bg-soft) 100%);
+  border-color:var(--line);
+  color:var(--text);
+}
+
+/* Заглавия и текст */
+:root[data-theme="premium"] h1,
+:root[data-theme="premium"] h2,
+:root[data-theme="premium"] h3,
+:root[data-theme="premium"] .brand,
+:root[data-theme="premium"] .stats-bar .stat b{color:var(--text)}
+:root[data-theme="premium"] .eyebrow{color:var(--gold);letter-spacing:1.4px}
+:root[data-theme="premium"] .eyebrow.coral{color:var(--accent)}
+:root[data-theme="premium"] p,
+:root[data-theme="premium"] small,
+:root[data-theme="premium"] .stats-bar .stat small,
+:root[data-theme="premium"] .book-author,
+:root[data-theme="premium"] .continue-info small{color:var(--text-dim)}
+:root[data-theme="premium"] footer{color:var(--text-faint)}
+
+/* Полета за въвеждане — задължително четими */
+:root[data-theme="premium"] textarea,
+:root[data-theme="premium"] input[type="text"],
+:root[data-theme="premium"] input[type="url"],
+:root[data-theme="premium"] input[type="search"],
+:root[data-theme="premium"] input[type="password"],
+:root[data-theme="premium"] .library-search,
+:root[data-theme="premium"] .remote-search,
+:root[data-theme="premium"] .source-search input,
+:root[data-theme="premium"] .url-row input,
+:root[data-theme="premium"] .api-key-field input,
+:root[data-theme="premium"] .library-edit{
+  background:var(--bg);
+  border:1px solid var(--line);
+  color:var(--text);
+}
+:root[data-theme="premium"] ::placeholder{color:var(--text-faint);opacity:1}
+:root[data-theme="premium"] textarea:focus-visible,
+:root[data-theme="premium"] input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+
+/* Вторични бутони/чипове */
+:root[data-theme="premium"] .ai-voice-card,
+:root[data-theme="premium"] .library-item,
+:root[data-theme="premium"] .chapter-list button,
+:root[data-theme="premium"] .sleep-options button,
+:root[data-theme="premium"] .gender-picker button,
+:root[data-theme="premium"] .source-tabs button,
+:root[data-theme="premium"] .source-options>button,
+:root[data-theme="premium"] .source-book,
+:root[data-theme="premium"] .source-book-open,
+:root[data-theme="premium"] .remote-results>button,
+:root[data-theme="premium"] .book-actions button,
+:root[data-theme="premium"] .alt-voices,
+:root[data-theme="premium"] .upload.ghost,
+:root[data-theme="premium"] .source-library-head>button,
+:root[data-theme="premium"] .nav-home{
+  background:var(--surface-2);
+  border-color:var(--line);
+  color:var(--text);
+}
+:root[data-theme="premium"] .source-tabs button small{background:var(--line);color:var(--text-dim)}
+
+/* Активно състояние — едно и също навсякъде */
+:root[data-theme="premium"] .ai-voice-card.active,
+:root[data-theme="premium"] .library-item.active,
+:root[data-theme="premium"] .chapter-list button.active,
+:root[data-theme="premium"] .sleep-options button.active,
+:root[data-theme="premium"] .source-tabs button.active,
+:root[data-theme="premium"] .gender-picker button.active,
+:root[data-theme="premium"] .book-actions button.on{
+  background:var(--accent-soft);
+  border-color:var(--accent);
+  color:#ffd9cd;
+}
+:root[data-theme="premium"] .source-tabs button.active{background:var(--accent);border-color:var(--accent);color:#2a120d}
+
+/* Основни действия */
+:root[data-theme="premium"] .start,
+:root[data-theme="premium"] .new-book,
+:root[data-theme="premium"] .continue-play{
+  background:linear-gradient(135deg,#f08a6b,#d95c43);
+  color:#2a120d;
+  box-shadow:0 12px 26px #00000055;
+}
+:root[data-theme="premium"] .start b,
+:root[data-theme="premium"] .start small{color:#2a120d}
+:root[data-theme="premium"] .storage-btn,
+:root[data-theme="premium"] .url-row button,
+:root[data-theme="premium"] .library-resume{background:var(--gold);color:#2a1f0d}
+:root[data-theme="premium"] .storage-link{color:var(--gold)}
+:root[data-theme="premium"] .save-book{background:var(--surface-2);border-color:var(--line);color:var(--accent)}
+:root[data-theme="premium"] .save-book.on{background:var(--accent);border-color:var(--accent);color:#2a120d}
+
+/* Плейър */
+:root[data-theme="premium"] .player{background:linear-gradient(180deg,#17302c,#0e211f);border:1px solid var(--line)}
+:root[data-theme="premium"] .now-playing,
+:root[data-theme="premium"] .audiobook-player{
+  background:radial-gradient(900px 520px at 50% -6%,#1d3f39 0%,#0b1614 62%);
+}
+:root[data-theme="premium"] .cover-play{background:var(--accent);color:#2a120d}
+:root[data-theme="premium"] .cover-progress i,
+:root[data-theme="premium"] .continue-bar i,
+:root[data-theme="premium"] .progress i,
+:root[data-theme="premium"] .np-scrubber i,
+:root[data-theme="premium"] .source-progress-bar i{background:linear-gradient(90deg,var(--gold),var(--accent))}
+:root[data-theme="premium"] .cover-done{background:var(--ok);color:#08211a}
+:root[data-theme="premium"] .book-rating button{color:#3a4d47}
+:root[data-theme="premium"] .book-rating button.on,
+:root[data-theme="premium"] .np-rating button.on{color:var(--gold)}
+
+/* Съобщения */
+:root[data-theme="premium"] .app-message{background:var(--surface-2);border:1px solid var(--line);color:var(--text-dim);border-radius:12px;padding:10px 12px}
+:root[data-theme="premium"] .app-message.error{background:#2a1a17;border-color:#5c332b;color:#ffc7b8}
+:root[data-theme="premium"] .quota-note{background:#2a2416;border-color:#4a3f22;color:var(--gold)}
+:root[data-theme="premium"] .source-status,
+:root[data-theme="premium"] .lang-badge,
+:root[data-theme="premium"] .queue-note{color:var(--text-dim)}
+:root[data-theme="premium"] .lang-badge b{color:var(--gold)}
+
+/* Скролбари */
+:root[data-theme="premium"] *::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+:root[data-theme="premium"] .shelf-row::-webkit-scrollbar-thumb{background:var(--line)}
+
+/* ——— Лента с проценти при сваляне на аудиокнига ——— */
+.source-progress{margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}
+.source-progress-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.source-progress-head span{font-size:12px;color:var(--text-dim)}
+.source-progress-head strong{font-size:18px;color:var(--gold);font-variant-numeric:tabular-nums}
+.source-progress-bar{height:8px;margin:9px 0 6px;border-radius:5px;background:#0c1a18;overflow:hidden}
+.source-progress-bar i{display:block;height:100%;border-radius:5px;transition:width .25s ease}
+.source-progress small{font-size:11px;color:var(--text-faint);font-variant-numeric:tabular-nums}
+
+/* ═══════════════════════════════════════════════════════════
+   МОБИЛНА ВЕРСИЯ — подравняване, четими бутони, удобни докосвания
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width:640px){
+  /* Никой интерактивен елемент под 44px (препоръка на Apple/Google). */
+  button, .upload, .source-tabs button, .sleep-options button,
+  .book-actions button, .storage-link, .nav-home{min-height:44px}
+  .book-rating button, .library-edit-btn, .library-remove,
+  .book-more, .source-book-favorite{min-height:40px;min-width:40px}
+
+  /* Хедър: подравнен, без пренасяне */
+  header{padding:10px 14px}
+  .header-right{gap:8px;align-items:center}
+  .status-dot{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+
+  /* Работната площ е една колона с еднакви отстъпи */
+  .workspace{grid-template-columns:1fr;gap:14px;padding:0 14px}
+  .card,.settings{padding:16px 14px;border-radius:16px}
+  .control-section{padding:18px 0}
+  .control-section h3{font-size:17px;margin:5px 0 12px}
+
+  /* Текстовото поле — по-удобно и без zoom при фокус (16px) */
+  textarea{min-height:210px;font-size:16px;line-height:1.55;border-radius:12px;padding:12px}
+  .text-actions{gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .upload{padding:0 12px;font-size:12px;border-radius:11px}
+  .text-meta{font-size:10px;gap:8px;flex-wrap:wrap}
+  .url-row input,.library-search,.remote-search,.source-search input{font-size:16px}
+
+  /* Основното действие е широко и ясно */
+  .action-row{gap:8px;margin:18px 0 4px}
+  .start{padding:14px;border-radius:14px}
+  .start b{font-size:15px}
+  .start small{font-size:11px}
+  .save-book{width:56px;border-radius:14px;font-size:20px}
+
+  /* Скорост / таймер / музика — равни колонки, без разкривяване */
+  .sleep-options{gap:6px}
+  .sleep-options button{flex:1 1 calc(33.333% - 6px);min-width:0;font-size:12px;padding:0 4px;border-radius:11px}
+  .genres.music-tracks{grid-template-columns:repeat(3,1fr);gap:7px}
+  .genres.music-tracks button{padding:9px 3px;border-radius:11px}
+  .genres.music-tracks button i{font-size:15px}
+  .genres.music-tracks button span{font-size:9px;line-height:1.2}
+  .volume-row{gap:9px}
+  .volume-row button{width:40px;height:40px;min-width:40px;border-radius:11px}
+  .range{height:26px}
+
+  /* Гласове — две в ред, четими */
+  .ai-voices{grid-template-columns:1fr 1fr;gap:7px}
+  .ai-voice-card{padding:6px;border-radius:12px}
+  .voice-name b{font-size:12px}
+  .voice-name small{font-size:9px}
+  .voice-preview{width:36px;height:36px;font-size:12px}
+  .gender-picker{gap:7px}
+  .gender-picker button{padding:10px 6px;border-radius:12px}
+
+  /* Каталог Storytel/Mega — редовете са подравнени и не се пренасят грозно */
+  .source-card{min-height:auto}
+  .source-step,.source-library{min-height:auto}
+  .source-options{grid-template-columns:1fr;gap:9px;margin-top:16px}
+  .source-options>button{min-height:auto;flex-direction:row;align-items:center;gap:12px;padding:13px;border-radius:14px}
+  .source-options>button>span{width:42px;height:42px;min-width:42px;margin-bottom:0}
+  .source-options b{font-size:14px}
+  .source-options small{font-size:11px}
+  .source-tabs{gap:6px;padding-bottom:8px}
+  .source-tabs button{min-height:38px;font-size:12px;padding:0 13px;border-radius:19px}
+  .source-book{grid-template-columns:minmax(0,1fr) 44px;gap:6px}
+  .source-book-open{grid-template-columns:40px minmax(0,1fr) 18px;gap:10px;padding:10px;border-radius:13px}
+  .source-book-icon{width:38px;height:38px;min-width:38px;font-size:13px}
+  .source-book-open b{font-size:13px;line-height:1.3}
+  .source-book-open small{font-size:10px;margin-top:3px}
+  .source-book-favorite{width:44px;border-radius:13px;font-size:17px}
+  .source-heading h2,.source-library-head h2{font-size:20px}
+
+  /* Библиотечни редове */
+  .library-item{grid-template-columns:minmax(0,1fr) 36px 36px 36px;gap:4px}
+  .library-open b{font-size:13px}
+  .library-open small{font-size:10px}
+
+  /* Панел за памет */
+  .storage-btn{min-height:48px;font-size:14px;border-radius:13px}
+  .storage-row{flex-wrap:wrap;gap:6px;font-size:12px}
+
+  /* Долният плейър не се крие зад системната лента */
+  .player{bottom:calc(10px + env(safe-area-inset-bottom));width:calc(100% - 16px);padding:10px 12px;border-radius:16px}
+  .player-actions{gap:4px;justify-content:space-between;width:100%}
+  .player-actions button{width:40px;height:40px;min-width:40px}
+  .player-actions .main-control{width:48px;height:48px;min-width:48px}
+  .player-actions span{width:auto;font-size:10px}
+
+  footer{padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+}
+
+/* Много тесни телефони */
+@media (max-width:360px){
+  .shelf-row{grid-auto-columns:104px}
+  .book-card{width:104px}
+  .genres.music-tracks{grid-template-columns:repeat(2,1fr)}
+  .ai-voices{grid-template-columns:1fr}
+  .sleep-options button{flex:1 1 calc(50% - 6px)}
+}
+
+/* ═══════ Поправки по кориците и подравняването ═══════ */
+
+/* Генерираната корица: инициалите горе, заглавието долу — и двете четими,
+   с място отдясно долу, за да не ги закрива бутонът за пускане. */
+.cover-art.gen{padding:10px;justify-content:space-between;overflow:hidden}
+.cover-art.gen .cover-initials{font-size:26px;line-height:1;opacity:.92}
+.cover-art.gen .cover-title{
+  font-size:11px;line-height:1.25;font-weight:600;
+  padding-right:34px;              /* място за кръгчето „▶“ */
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden;word-break:break-word;hyphens:auto;
+  text-shadow:0 1px 3px #0006;
+}
+
+/* Заглавието под корицата и бутонът „⋯“ се подравняват отгоре */
+.book-headline{align-items:start}
+.book-more{align-self:start;margin-top:-2px}
+
+/* Рафт с една книга да не оставя огромна празнина */
+.shelf-row{align-items:start}
+
+:root[data-theme="premium"] .cover-art.gen{box-shadow:0 8px 22px #00000066}
+
+@media (max-width:640px){
+  /* Хиро-то: заглавие и бутон един до друг, а не на два реда */
+  .home-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+  .home-hero h1{font-size:19px;line-height:1.2}
+  .new-book{padding:0 14px;font-size:13px;white-space:nowrap;min-height:44px}
+
+  /* По-компактни корици и по-малко празно място между рафтовете */
+  .shelf{margin-bottom:18px}
+  .shelf-row{grid-auto-columns:112px;gap:10px;padding-bottom:6px}
+  .book-card{width:112px}
+  .cover-art.gen{padding:8px}
+  .cover-art.gen .cover-initials{font-size:21px}
+  .cover-art.gen .cover-title{font-size:10px;-webkit-line-clamp:2;padding-right:30px}
+  .book-cover-btn .cover-play{width:26px;height:26px;font-size:10px;right:6px;bottom:6px}
+  .book-title{font-size:12px;-webkit-line-clamp:2}
+  .book-meta{padding-top:6px}
+
+  /* „Продължи да слушаш“ — заглавието на един-два реда, без рязане */
+  .continue-info b{-webkit-line-clamp:2}
+  .continue-card .cover-art.gen .cover-title{display:none}
+  .continue-card .cover-art.gen{justify-content:center;align-items:center}
+  .continue-card .cover-art.gen .cover-initials{font-size:19px}
+}
+
+/* Дългите заглавия се пренасят, вместо да се режат по средата на думата. */
+.book-title,
+.continue-info b,
+.cover-art.gen .cover-title,
+.source-book-open b,
+.library-open b,
+.np-title h2{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+.book-title{min-width:0}
+.book-headline-text{overflow:hidden}

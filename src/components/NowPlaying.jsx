@@ -12,7 +12,7 @@ const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
 const SLEEPS = [15, 30, 45, 60];
 
 export default function NowPlaying({
-  book, status, progress, position, chapters, activeChapter, rate, remainingMins,
+  book, status, position, chapters, activeChapter, rate, remainingMins,
   chunks, activeChunk, wordFraction, sleepMinutes, sleepRemaining, chapterMode, voiceEnergy = 0, message,
   onClose, onPlay, onPause, onStop, onPrev, onNext, onSkip, onSeek, onRate, onBookmark, onSpeed,
   onSelectChapter, onJumpBookmark, onRemoveBookmark, onJumpChunk, onSleep, onChapterMode,

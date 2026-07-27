@@ -42,8 +42,6 @@ import {
 import { addListening, flushListening, getStats } from './services/stats';
 
 const sample = 'Понякога най-добрите истории не чакат да бъдат написани. Те вече са тук — в статиите, които пазим, в бележките, към които се връщаме, и в думите, за които рядко намираме време. Voxora превръща всеки текст в лично аудио изживяване.';
-const THEMES = ['auto', 'light', 'dark'];
-const THEME_ICON = { auto: '◐', light: '☀', dark: '🌙' };
 
 export default function App() {
   const initial = useRef(loadSettings()).current;
@@ -61,7 +59,6 @@ export default function App() {
   const [music, setMusic] = useState(initial.music);
   const [genre, setGenre] = useState(initial.genre);
   const [volume, setVolume] = useState(initial.volume);
-  const [theme, setTheme] = useState(initial.theme);
   const [status, setStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
   const [position, setPosition] = useState(null);
@@ -157,7 +154,6 @@ export default function App() {
     music,
     genre,
     volume,
-    theme,
   }), [
     ttsProvider,
     elevenPrimaryVoice,
@@ -169,19 +165,11 @@ export default function App() {
     music,
     genre,
     volume,
-    theme,
   ]);
+  // Приложението има една премиум тема — няма превключвател светло/тъмно.
   useEffect(() => {
-    const root = document.documentElement;
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => root.setAttribute('data-theme', theme === 'auto' ? (media.matches ? 'dark' : 'light') : theme);
-    apply();
-    if (theme === 'auto') {
-      media.addEventListener('change', apply);
-      return () => media.removeEventListener('change', apply);
-    }
-    return undefined;
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'premium');
+  }, []);
   useEffect(() => { if (status === 'speaking' && music) { ambient.current.start(genre); ambient.current.setVolume(volume); } }, [genre]);
   useEffect(() => {
     if (status !== 'speaking') return;
@@ -390,7 +378,6 @@ export default function App() {
     setVoiceEnergy(0);
     setTtsProvider(next);
   };
-  const cycleTheme = () => setTheme((current) => THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]);
 
   // ——— Отметки ———
   const bookmark = () => {
@@ -568,7 +555,10 @@ export default function App() {
       const catalog = await openRemoteCatalog(book.sourceUrl, book.title);
       const item = catalog.items[0];
       if (!item) throw new Error('Аудиофайлът вече не е наличен.');
-      const downloaded = await downloadRemoteItem(item);
+      // Показваме проценти, а не само „зареждам“.
+      const downloaded = await downloadRemoteItem(item, (percent) => {
+        setMessage(`Свалям „${book.title}“… ${percent}%`);
+      });
       openAudioBook(downloaded, {
         item,
         book: { ...item, name: book.title, url: book.sourceUrl },
@@ -766,7 +756,6 @@ export default function App() {
             <button className="nav-home" onClick={() => { setView('home'); setStats(getStats()); }}>← Библиотека</button>
           )}
           <span className="status-dot">● {ttsProvider === 'elevenlabs' ? 'ElevenLabs Multilingual v2' : 'Gemini AI Audio'}</span>
-          <button className="theme-toggle" onClick={cycleTheme} aria-label={`Тема: ${theme}`} title={`Тема: ${theme}`}>{THEME_ICON[theme]}</button>
           <button className="profile" aria-label="Профил">В</button>
         </div>
       </header>

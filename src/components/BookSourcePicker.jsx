@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  MAX_IN_APP_AUDIO_BYTES,
   discoverFourEtiPage,
   downloadRemoteItem,
   formatRemoteSize,
@@ -36,6 +35,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   const [status, setStatus] = useState('');
   const [favoriteKeys, setFavoriteKeys] = useState(() => loadRemoteFavorites());
   const [showFavorites, setShowFavorites] = useState(false);
+  const [progress, setProgress] = useState(null);
 
   const visibleItems = useMemo(() => {
     if (!catalog) return [];
@@ -106,18 +106,13 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   };
 
   const importRemoteItem = async (item, context = {}) => {
-    if (item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES) {
-      window.open(item.url, '_blank', 'noopener,noreferrer');
-      setStatus('Файлът е твърде голям за паметта на телефона и е отворен във външното хранилище.');
-      return;
-    }
-    if (
-      item.kind === 'audio'
-      && item.size > 80 * 1024 * 1024
-      && !window.confirm(`Аудиокнигата е ${formatRemoteSize(item.size)}. Да я заредя ли в телефона?`)
-    ) return;
-
-    const downloaded = await downloadRemoteItem(item);
+    // Свалянето е на части и не пълни паметта, затова и големите книги
+    // тръгват направо — без „Отвори“ във външно хранилище и без питане.
+    setProgress({ percent: 0, received: 0, total: item.size || 0 });
+    const downloaded = await downloadRemoteItem(item, (percent, received, total) => {
+      setProgress({ percent, received, total });
+    });
+    setProgress(null);
     const book = context.book || item;
     const key = remoteBookKey(source, book);
     const details = {
@@ -271,7 +266,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
                     formatRemoteSize(item.size),
                   ].filter(Boolean).join(' · ')}</small>
                 </span>
-                <i>{item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES ? 'Отвори' : '›'}</i>
+                <i>›</i>
               </button>
               <button
                 className={`source-book-favorite ${favorite ? 'on' : ''}`}
@@ -287,7 +282,20 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
         {catalog && !visibleItems.length && !busy && <p>Няма книги по това търсене.</p>}
       </div>
 
-      <p className="source-status" role="status">{busy ? 'Зареждам…' : status}</p>
+      {progress ? (
+        <div className="source-progress" role="status" aria-live="polite">
+          <div className="source-progress-head">
+            <span>Свалям аудиокнигата…</span>
+            <strong>{progress.percent}%</strong>
+          </div>
+          <div className="source-progress-bar"><i style={{ width: `${progress.percent}%` }} /></div>
+          {progress.total > 0 && (
+            <small>{formatRemoteSize(progress.received)} от {formatRemoteSize(progress.total)}</small>
+          )}
+        </div>
+      ) : (
+        <p className="source-status" role="status">{busy ? 'Зареждам…' : status}</p>
+      )}
     </div>
   );
 }

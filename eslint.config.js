@@ -34,7 +34,9 @@ export default [
       },
     },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      // Без react-plugin ESLint не вижда употребата в JSX, затова компонентите
+      // (започващи с главна буква) не се броят за неизползвани.
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^[A-Z]' }],
       'no-empty': 'off',
     },
   },

@@ -252,6 +252,58 @@ export const openRemoteCatalog = async (url, label = '') => {
 
 const downloadBuffer = async (node) => new Uint8Array(await node.downloadBuffer());
 
+// Сваляне на глас/аудиокнига НА ЧАСТИ.
+// Старият вариант държеше целия файл (често 200–600 MB) в паметта на страницата,
+// което на iPhone надхвърля лимита на Safari и възпроизвеждането просто не тръгва.
+// Тук периодично превръщаме натрупаните части в Blob — браузърът ги пази на диска,
+// а паметта остава ниска. Така работят и големите книги, и имаме проценти.
+const FLUSH_EVERY_BYTES = 8 * 1024 * 1024;
+
+export const downloadNodeToBlob = async (node, { onProgress, type = 'audio/mp4' } = {}) => {
+  const total = node.size || 0;
+  const stream = typeof node.download === 'function' ? node.download({}) : null;
+
+  // Ако стриймът не е наличен, връщаме се към стария начин (малки файлове).
+  if (!stream || typeof stream.on !== 'function') {
+    const bytes = await downloadBuffer(node);
+    onProgress?.(100, total, total);
+    return new Blob([bytes], { type });
+  }
+
+  return new Promise((resolve, reject) => {
+    const parts = [];
+    let buffered = [];
+    let bufferedBytes = 0;
+    let received = 0;
+
+    const flush = () => {
+      if (!buffered.length) return;
+      parts.push(new Blob(buffered, { type }));
+      buffered = [];
+      bufferedBytes = 0;
+    };
+
+    stream.on('data', (chunk) => {
+      const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+      buffered.push(bytes);
+      bufferedBytes += bytes.byteLength;
+      received += bytes.byteLength;
+      if (bufferedBytes >= FLUSH_EVERY_BYTES) flush();
+      if (total) onProgress?.(Math.min(99, Math.round((received / total) * 100)), received, total);
+    });
+    stream.on('error', reject);
+    stream.on('end', () => {
+      try {
+        flush();
+        onProgress?.(100, received, total || received);
+        resolve(new Blob(parts, { type }));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+};
+
 const downloadMegaMetadata = async (node) => {
   const siblings = node.parent?.children || [];
   const metadataNode = siblings.find((item) => /^metadata\.json$/i.test(item.name || ''));
@@ -278,12 +330,11 @@ const downloadMegaMetadata = async (node) => {
   return { metadata, cover };
 };
 
-export const downloadRemoteItem = async (item) => {
+export const downloadRemoteItem = async (item, onProgress) => {
   if (item.provider === 'mega') {
-    const bytes = await downloadBuffer(item._node);
-    const file = new window.File([bytes], item.name, {
-      type: item.kind === 'audio' ? 'audio/mp4' : '',
-    });
+    const type = item.kind === 'audio' ? 'audio/mp4' : '';
+    const blob = await downloadNodeToBlob(item._node, { onProgress, type });
+    const file = new window.File([blob], item.name, { type });
     if (item.kind === 'audio') {
       const extras = await downloadMegaMetadata(item._node);
       return { file, ...extras };
@@ -296,10 +347,42 @@ export const downloadRemoteItem = async (item) => {
     : item.url;
   const response = await fetch(requestUrl);
   if (!response.ok) throw new Error(`Файлът не може да се свали (HTTP ${response.status}).`);
-  const blob = await response.blob();
+
+  // Четем на части, за да можем да покажем проценти и да не пълним паметта.
+  const total = Number(response.headers.get('content-length') || item.size || 0);
+  const type = item.kind === 'audio' ? 'audio/mp4' : '';
+  let blob;
+
+  if (response.body?.getReader) {
+    const reader = response.body.getReader();
+    const parts = [];
+    let buffered = [];
+    let bufferedBytes = 0;
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read(); // eslint-disable-line no-await-in-loop
+      if (done) break;
+      buffered.push(value);
+      bufferedBytes += value.byteLength;
+      received += value.byteLength;
+      if (bufferedBytes >= FLUSH_EVERY_BYTES) {
+        parts.push(new Blob(buffered, { type }));
+        buffered = [];
+        bufferedBytes = 0;
+      }
+      if (total) onProgress?.(Math.min(99, Math.round((received / total) * 100)), received, total);
+    }
+    if (buffered.length) parts.push(new Blob(buffered, { type }));
+    blob = new Blob(parts, { type });
+    onProgress?.(100, received, total || received);
+  } else {
+    blob = await response.blob();
+    onProgress?.(100, blob.size, blob.size);
+  }
+
   return {
     file: new window.File([blob], item.name, {
-      type: blob.type || (item.kind === 'audio' ? 'audio/mp4' : ''),
+      type: blob.type || type,
     }),
   };
 };

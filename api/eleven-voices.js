@@ -19,21 +19,41 @@ export async function GET() {
     }, 503);
   }
 
-  try {
-    const upstream = await fetch('https://api.elevenlabs.io/v2/voices?page_size=100&include_total_count=false', {
-      headers: { 'xi-api-key': apiKey },
-      signal: AbortSignal.timeout(15000),
-    });
+  // Някои ключове нямат достъп до v2 (или до `voices_read`), затова при
+  // отказ пробваме и класическия v1 адрес, преди да кажем, че ключът е грешен.
+  const endpoints = [
+    'https://api.elevenlabs.io/v2/voices?page_size=100&include_total_count=false',
+    'https://api.elevenlabs.io/v1/voices',
+  ];
 
-    if (!upstream.ok) {
-      const status = upstream.status === 401 ? 401 : 502;
+  try {
+    let upstream = null;
+    let lastDetail = '';
+
+    for (const endpoint of endpoints) {
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(endpoint, {
+        headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (response.ok) { upstream = response; break; }
+      // eslint-disable-next-line no-await-in-loop
+      const text = await response.text().catch(() => '');
+      lastDetail = `HTTP ${response.status}${text ? ` · ${text.slice(0, 300)}` : ''}`;
+    }
+
+    if (!upstream) {
+      const unauthorized = /HTTP 401|HTTP 403/.test(lastDetail);
       return json({
         configured: true,
-        message: status === 401
-          ? 'ElevenLabs ключът във Vercel е невалиден.'
-          : 'ElevenLabs временно не връща списъка с гласове.',
+        // Показваме и точния отговор на ElevenLabs, за да се вижда дали ключът е
+        // грешен, изтекъл, без права, или профилът е блокиран.
+        message: unauthorized
+          ? `ElevenLabs отказа ключа (${lastDetail}). Провери дали ELEVENLABS_API_KEY във Vercel е активен, има права "Text to Speech" и "Voices" и дали проектът е преразгърнат след добавянето му.`
+          : `ElevenLabs не върна списъка с гласове (${lastDetail || 'няма отговор'}).`,
+        detail: lastDetail,
         voices: [],
-      }, status);
+      }, unauthorized ? 401 : 502);
     }
 
     const data = await upstream.json();
