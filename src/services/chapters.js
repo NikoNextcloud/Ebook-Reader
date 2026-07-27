@@ -1,5 +1,6 @@
 // Опитва да раздели обикновен текст на глави по заглавни редове.
-const HEADING = /^\s*(глава|част|chapter|part|раздел)\b.*$/i;
+// Без \b — той не работи коректно след кирилица (\w е само ASCII).
+const HEADING = /^\s*(глава|част|раздел|chapter|part)([\s.:№#-]|\d|$)/i;
 
 export const splitIntoChapters = (text = '') => {
   const lines = text.split('\n');

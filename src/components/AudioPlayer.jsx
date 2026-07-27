@@ -1,2 +1,50 @@
-const fmt=s=>{if(!s||!isFinite(s))return'0:00';const m=Math.floor(s/60),sec=Math.floor(s%60);return`${m}:${String(sec).padStart(2,'0')}`};
-export default function AudioPlayer({status,progress,position,onPlay,onPause,onStop,onRestart,onPrev,onNext,onSkip,onSeek,onDownload,downloading,disabled}){const active=status!=='idle'&&status!=='stopped'&&status!=='finished';const canSeek=active&&status!=='loading';const seek=e=>{if(!canSeek)return;const r=e.currentTarget.getBoundingClientRect();onSeek?.((e.clientX-r.left)/r.width)};const chunkPct=position?.chunkDuration?position.chunkTime/position.chunkDuration*100:0;return <div className={`player ${active?'live':''}`}><div className="player-info"><span className="cover">V</span><div><b>{active?'Voxora чете':'Готово за слушане'}</b><small>{status==='paused'?'На пауза':active?(position?`${fmt(position.chunkTime)} / ${fmt(position.chunkDuration)} · част ${position.chunk+1}/${position.total}`:'Твоят текст оживява'):'Избери настройки и започни'}</small></div></div><div className={`progress ${canSeek?'seekable':''}`} onClick={seek} role="slider" aria-label="Позиция в текущата част" aria-valuenow={Math.round(canSeek?chunkPct:progress)}><i style={{width:`${canSeek?chunkPct:progress}%`}}/></div><div className="player-actions"><button aria-label="Предишна част" onClick={onPrev} disabled={!active}>⏮</button><button aria-label="Назад 15 секунди" onClick={()=>onSkip?.(-15)} disabled={!canSeek}>«15</button>{status==='speaking'?<button className="main-control" onClick={onPause} aria-label="Пауза">Ⅱ</button>:<button className="main-control" onClick={onPlay} disabled={disabled} aria-label="Пусни">▶</button>}<button aria-label="Напред 15 секунди" onClick={()=>onSkip?.(15)} disabled={!canSeek}>15»</button><button aria-label="Следваща част" onClick={onNext} disabled={!active}>⏭</button><button aria-label="Стоп" onClick={onStop} disabled={!active}>■</button><button className="download" aria-label="Свали като аудио файл" onClick={onDownload} disabled={disabled||downloading} title="Свали като WAV">{downloading?'…':'⤓'}</button><span>{Math.round(progress)}%</span></div></div>}
+const fmt = (s) => {
+  if (!s || !isFinite(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+};
+
+export default function AudioPlayer({ status, progress, position, remainingMins, onPlay, onPause, onStop, onRestart, onPrev, onNext, onSkip, onSeek, onBookmark, onDownload, downloading, disabled }) {
+  const active = status !== 'idle' && status !== 'stopped' && status !== 'finished';
+  const canSeek = active && status !== 'loading';
+  const seek = (e) => {
+    if (!canSeek) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    onSeek?.((e.clientX - r.left) / r.width);
+  };
+  const chunkPct = position?.chunkDuration ? (position.chunkTime / position.chunkDuration) * 100 : 0;
+  const sub = status === 'paused'
+    ? 'На пауза'
+    : active
+      ? (position ? `${fmt(position.chunkTime)} / ${fmt(position.chunkDuration)} · част ${position.chunk + 1}/${position.total}` : 'Твоят текст оживява')
+      : 'Избери настройки и започни';
+
+  return (
+    <div className={`player ${active ? 'live' : ''}`}>
+      <div className="player-info">
+        <span className="cover">V</span>
+        <div>
+          <b>{active ? 'Voxora чете' : 'Готово за слушане'}</b>
+          <small>{sub}{active && remainingMins != null ? ` · остават ~${remainingMins} мин.` : ''}</small>
+        </div>
+      </div>
+      <div className={`progress ${canSeek ? 'seekable' : ''}`} onClick={seek} role="slider" aria-label="Позиция в текущата част" aria-valuenow={Math.round(canSeek ? chunkPct : progress)}>
+        <i style={{ width: `${canSeek ? chunkPct : progress}%` }} />
+      </div>
+      <div className="player-actions">
+        <button aria-label="Предишна част" onClick={onPrev} disabled={!active}>⏮</button>
+        <button aria-label="Назад 15 секунди" onClick={() => onSkip?.(-15)} disabled={!canSeek}>«15</button>
+        {status === 'speaking'
+          ? <button className="main-control" onClick={onPause} aria-label="Пауза">Ⅱ</button>
+          : <button className="main-control" onClick={onPlay} disabled={disabled} aria-label="Пусни">▶</button>}
+        <button aria-label="Напред 15 секунди" onClick={() => onSkip?.(15)} disabled={!canSeek}>15»</button>
+        <button aria-label="Следваща част" onClick={onNext} disabled={!active}>⏭</button>
+        <button aria-label="Отметка тук" onClick={onBookmark} disabled={!active} title="Постави отметка">🔖</button>
+        <button aria-label="Стоп" onClick={onStop} disabled={!active}>■</button>
+        <button className="download" aria-label="Свали като аудио файл" onClick={onDownload} disabled={disabled || downloading} title="Свали като WAV">{downloading ? '…' : '⤓'}</button>
+        <span>{Math.round(progress)}%</span>
+      </div>
+    </div>
+  );
+}

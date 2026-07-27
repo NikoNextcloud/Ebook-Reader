@@ -68,3 +68,42 @@ export const updateTitle = (id, title) => {
 };
 
 export const removeBook = (id) => write(read().filter((book) => book.id !== id));
+
+// ——— Отметки ———
+export const addBookmark = (id, chunkIndex, label) => {
+  const list = read();
+  const book = list.find((item) => item.id === id);
+  if (!book) return;
+  book.bookmarks = book.bookmarks || [];
+  if (book.bookmarks.some((mark) => mark.chunkIndex === chunkIndex)) return;
+  book.bookmarks.push({ chunkIndex, label: label || `Част ${chunkIndex + 1}`, at: Date.now() });
+  book.bookmarks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+  write(list);
+};
+
+export const removeBookmark = (id, chunkIndex) => {
+  const list = read();
+  const book = list.find((item) => item.id === id);
+  if (!book?.bookmarks) return;
+  book.bookmarks = book.bookmarks.filter((mark) => mark.chunkIndex !== chunkIndex);
+  write(list);
+};
+
+// ——— Резервно копие ———
+export const exportLibrary = () => JSON.stringify(read(), null, 2);
+
+export const importLibrary = (json) => {
+  try {
+    const incoming = JSON.parse(json);
+    if (!Array.isArray(incoming)) return false;
+    const list = read();
+    const byId = new Map(list.map((book) => [book.id, book]));
+    incoming.forEach((book) => {
+      if (book?.id && book?.text) byId.set(book.id, { ...byId.get(book.id), ...book });
+    });
+    write([...byId.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
+    return true;
+  } catch {
+    return false;
+  }
+};

@@ -6,12 +6,17 @@ import MusicSelector from './components/MusicSelector';
 import SleepTimer from './components/SleepTimer';
 import Library from './components/Library';
 import ChapterSelector from './components/ChapterSelector';
+import StoragePanel from './components/StoragePanel';
 import AudioPlayer from './components/AudioPlayer';
 import { AmbientAudio } from './services/ambientAudio';
 import { GeminiTTS, splitTextForSpeech } from './services/geminiTtsService';
-import { loadBooks, saveBook, updatePosition, updateTitle, removeBook, makeTitle } from './services/library';
+import {
+  loadBooks, saveBook, updatePosition, updateTitle, removeBook, makeTitle,
+  addBookmark, removeBookmark, exportLibrary, importLibrary,
+} from './services/library';
 import { loadSettings, saveSettings } from './services/settings';
 import { detectLanguage, langLabel } from './services/lang';
+import { idbClear } from './services/idbCache';
 
 const sample = 'Понякога най-добрите истории не чакат да бъдат написани. Те вече са тук — в статиите, които пазим, в бележките, към които се връщаме, и в думите, за които рядко намираме време. Voxora превръща всеки текст в лично аудио изживяване.';
 const THEMES = ['auto', 'light', 'dark'];
@@ -38,6 +43,8 @@ export default function App() {
   const [currentBookId, setCurrentBookId] = useState(null);
   const [activeChunk, setActiveChunk] = useState(-1);
   const [downloading, setDownloading] = useState(false);
+  const [caching, setCaching] = useState(false);
+  const [cacheProgress, setCacheProgress] = useState(0);
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [sleepRemaining, setSleepRemaining] = useState(null);
   const [chapters, setChapters] = useState(null);
@@ -49,12 +56,20 @@ export default function App() {
   const downloadTts = useRef(new GeminiTTS());
   const fileTitle = useRef('');
   const activeSpan = useRef(null);
+  const chaptersRef = useRef(null);
+  const activeChapterRef = useRef(0);
+  const beginPlaybackRef = useRef(() => {});
 
   const chunks = useMemo(() => splitTextForSpeech(text), [text]);
   const language = useMemo(() => detectLanguage(text), [text]);
   const words = useMemo(() => (text.trim() ? text.trim().split(/\s+/).length : 0), [text]);
   const mins = Math.max(1, Math.ceil(words / (165 * rate)));
+  const remainingMins = Math.max(0, Math.round(mins * (1 - progress / 100)));
+  const heavy = chunks.length > 12;
   const refreshBooks = useCallback(() => setBooks(loadBooks()), []);
+
+  useEffect(() => { chaptersRef.current = chapters; }, [chapters]);
+  useEffect(() => { activeChapterRef.current = activeChapter; }, [activeChapter]);
 
   useEffect(() => () => {
     tts.current.stop();
@@ -135,6 +150,18 @@ export default function App() {
           setMessage(error.message || 'Четенето спря, защото следващата част не можа да се генерира.');
         },
         onEnd: () => {
+          // Авто-продължаване към следващата глава (ако има).
+          const chs = chaptersRef.current;
+          const nextIdx = activeChapterRef.current + 1;
+          if (chs && nextIdx < chs.length) {
+            setProgress(0);
+            setActiveChapter(nextIdx);
+            setActiveChunk(0);
+            setTextState(chs[nextIdx].text);
+            setMessage(`▶ Глава ${nextIdx + 1}: ${chs[nextIdx].title}`);
+            beginPlaybackRef.current(chs[nextIdx].text, 0, bookId);
+            return;
+          }
           setProgress(100);
           setStatus('finished');
           setFocusMode(false);
@@ -143,7 +170,7 @@ export default function App() {
         },
       });
       setStatus('speaking');
-      setMessage('');
+      if (!chaptersRef.current) setMessage('');
     } catch (error) {
       ambient.current.stop();
       setFocusMode(false);
@@ -151,6 +178,7 @@ export default function App() {
       setMessage(error.message || 'Гласът не може да бъде генериран. Провери ключа.');
     }
   };
+  beginPlaybackRef.current = beginPlayback;
 
   const speak = async (fromStart) => {
     if (!text.trim()) return;
@@ -190,6 +218,16 @@ export default function App() {
   const next = () => tts.current.next();
   const prev = () => tts.current.prev();
   const cycleTheme = () => setTheme((current) => THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]);
+
+  // ——— Отметки ———
+  const bookmark = () => {
+    if (!currentBookId) return;
+    addBookmark(currentBookId, tts.current.currentChunk || 0, `Част ${(tts.current.currentChunk || 0) + 1}`);
+    refreshBooks();
+    setMessage('Отметката е запазена. 🔖');
+  };
+  const jumpBookmark = (book, chunkIndex) => { openBook(book); beginPlayback(book.text, chunkIndex, book.id); };
+  const deleteBookmark = (id, chunkIndex) => { removeBookmark(id, chunkIndex); refreshBooks(); };
 
   // ——— Библиотека ———
   const openBook = (book) => {
@@ -232,7 +270,7 @@ export default function App() {
     if (record) { setCurrentBookId(record.id); refreshBooks(); setMessage('Запазено в библиотеката — можеш да редактираш заглавието с ✎.'); }
   };
 
-  // ——— Сваляне на аудиото ———
+  // ——— Сваляне / офлайн / резервно копие ———
   const download = async () => {
     if (!text.trim()) return;
     if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш аудиото.'); return; }
@@ -255,6 +293,41 @@ export default function App() {
     } finally {
       setDownloading(false);
     }
+  };
+
+  const cacheOffline = async () => {
+    if (!text.trim()) return;
+    if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш книгата офлайн.'); return; }
+    setCaching(true);
+    setCacheProgress(0);
+    setMessage('Генерирам звука за офлайн слушане…');
+    try {
+      downloadTts.current.prepare(text, { apiKey: apiKey.trim(), voiceName: voice, rate, language });
+      await downloadTts.current.cacheAll(setCacheProgress);
+      setMessage('Книгата е готова за офлайн слушане. ✅');
+    } catch (error) {
+      setMessage(error.message || 'Офлайн свалянето се провали.');
+    } finally {
+      setCaching(false);
+    }
+  };
+
+  const clearCache = async () => { await idbClear(); setMessage('Кешираният звук е изтрит.'); };
+  const exportLib = () => {
+    const blob = new Blob([exportLibrary()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'voxora-library.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+  const importLib = async (file) => {
+    const ok = importLibrary(await file.text());
+    setMessage(ok ? 'Библиотеката е импортирана.' : 'Файлът не е валидно резервно копие.');
+    refreshBooks();
   };
 
   // ——— Таймер за сън ———
@@ -320,10 +393,40 @@ export default function App() {
     if (focusMode && activeSpan.current) activeSpan.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [activeChunk, focusMode]);
 
+  // Индекс на активната дума в текущото парче (караоке подсветяване).
+  const wordFraction = position && position.chunk === activeChunk && position.chunkDuration
+    ? position.chunkTime / position.chunkDuration
+    : 0;
+
+  const renderChunk = (chunk, index) => {
+    if (index !== activeChunk) {
+      return (
+        <span key={index} className={index < activeChunk ? 'read-word' : ''} onClick={() => tts.current.jumpToChunk(index)}>
+          {chunk}{' '}
+        </span>
+      );
+    }
+    const wArr = chunk.split(' ');
+    const target = wordFraction * (chunk.length || 1);
+    let acc = 0;
+    let wi = 0;
+    for (let k = 0; k < wArr.length; k += 1) {
+      acc += wArr[k].length + 1;
+      wi = k;
+      if (acc >= target) break;
+    }
+    return (
+      <span key={index} ref={activeSpan} className="active-chunk" onClick={() => tts.current.jumpToChunk(index)}>
+        {wArr.map((w, k) => (
+          <span key={k} className={k === wi ? 'current-word' : k < wi ? 'read-word' : ''}>{w}{' '}</span>
+        ))}
+      </span>
+    );
+  };
+
   return (
     <>
-      <header>
-        <a className="brand" href="#top"><span>V</span>VOXORA</a>
+      <header className="minimal">
         <div className="header-right">
           <span className="status-dot">● Gemini AI Audio</span>
           <button className="theme-toggle" onClick={cycleTheme} aria-label={`Тема: ${theme}`} title={`Тема: ${theme}`}>{THEME_ICON[theme]}</button>
@@ -342,13 +445,32 @@ export default function App() {
         <div className="workspace">
           <TextInput text={text} setText={setText} onLoaded={onLoaded} />
           <aside className="card settings">
-            <Library books={books} activeId={currentBookId} onOpen={openBook} onResume={resumeBook} onRemove={deleteBook} onRename={renameBook} />
+            <Library
+              books={books}
+              activeId={currentBookId}
+              onOpen={openBook}
+              onResume={resumeBook}
+              onRemove={deleteBook}
+              onRename={renameBook}
+              onJumpBookmark={jumpBookmark}
+              onRemoveBookmark={deleteBookmark}
+            />
             <ChapterSelector chapters={chapters} active={activeChapter} onSelect={selectChapter} />
             <VoiceSelector selected={voice} onSelect={setVoice} gender={gender} onGender={setGender} apiKey={apiKey} onApiKey={setApiKey} onPreview={preview} previewing={previewing} />
             {text.trim() && <p className="lang-badge">Разпознат език: <b>{langLabel(language)}</b></p>}
             <SpeedControl value={rate} onChange={setRate} />
             <MusicSelector enabled={music} setEnabled={setMusic} genre={genre} setGenre={setGenre} volume={volume} setVolume={setVolume} />
             <SleepTimer minutes={sleepMinutes} onChange={setSleepMinutes} remaining={sleepRemaining} />
+            <StoragePanel
+              hasText={!!text.trim()}
+              caching={caching}
+              cacheProgress={cacheProgress}
+              onCacheOffline={cacheOffline}
+              onClearCache={clearCache}
+              onExport={exportLib}
+              onImport={importLib}
+            />
+            {heavy && <p className="quota-note">⚠ Дълъг текст: ~{chunks.length} AI заявки (~{mins} мин. звук). Може да изразходи дневния лимит наведнъж.</p>}
             {message && (
               <p className={`app-message ${status === 'error' ? 'error' : ''}`}>
                 {message}
@@ -372,6 +494,7 @@ export default function App() {
         status={status}
         progress={progress}
         position={position}
+        remainingMins={remainingMins}
         onPlay={() => speak(false)}
         onPause={pause}
         onStop={stop}
@@ -380,6 +503,7 @@ export default function App() {
         onNext={next}
         onSkip={skip}
         onSeek={seek}
+        onBookmark={bookmark}
         onDownload={download}
         downloading={downloading}
         disabled={!text.trim()}
@@ -404,18 +528,7 @@ export default function App() {
                 <span>Следи текста</span>
                 <span>{Math.min(activeChunk + 1, chunks.length)} / {chunks.length}</span>
               </div>
-              <p>
-                {chunks.map((chunk, index) => (
-                  <span
-                    key={index}
-                    ref={index === activeChunk ? activeSpan : null}
-                    className={index === activeChunk ? 'current-word' : index < activeChunk ? 'read-word' : ''}
-                    onClick={() => tts.current.jumpToChunk(index)}
-                  >
-                    {chunk}{' '}
-                  </span>
-                ))}
-              </p>
+              <p>{chunks.map(renderChunk)}</p>
             </div>
           )}
           <p className="overlay-hint">Натисни извън карето, за да редактираш · докосни изречение, за да прескочиш</p>

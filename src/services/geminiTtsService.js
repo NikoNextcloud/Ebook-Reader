@@ -342,6 +342,15 @@ export class GeminiTTS {
     this.jumpToChunk(this.currentChunk - 1);
   }
 
+  // Пре-генерира всички парчета в кеша (IndexedDB) за офлайн слушане.
+  async cacheAll(onProgress) {
+    for (let i = 0; i < this.chunks.length; i += 1) {
+      onProgress?.(Math.round((i / this.chunks.length) * 100));
+      await this.blobForChunk(i); // eslint-disable-line no-await-in-loop
+    }
+    onProgress?.(100);
+  }
+
   // Сваля целия текст като един WAV — генерира липсващите парчета при нужда.
   async downloadAll(onProgress) {
     const blobs = [];

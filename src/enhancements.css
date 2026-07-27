@@ -107,3 +107,32 @@
 :root[data-theme="dark"] .upload.ghost{border-color:#2c3a36;color:#dbe3e0}
 :root[data-theme="dark"] .reading-view{background:#1c2416;border-color:#3a4a1e}
 :root[data-theme="dark"] .reading-view p{color:#d5ddd8}
+
+/* ——— Хедър без лого (само дясната част) ——— */
+header.minimal{justify-content:flex-end}
+
+/* ——— Отметки ——— */
+.bookmark-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px;padding-left:2px}
+.bookmark-chip{display:inline-flex;align-items:center;gap:2px;background:#fff3ef;border:1px solid #f0d3cb;border-radius:20px;overflow:hidden}
+.bookmark-chip button{border:0;background:transparent;color:#c34a34;font-size:10px;padding:4px 8px;cursor:pointer}
+.bookmark-chip .bm-x{padding:4px 7px 4px 0;color:#b0817a}
+.library-item-wrap.active .library-item{border-color:#ed735e}
+
+/* ——— Панел за офлайн/памет ——— */
+.storage-btn{width:100%;border:0;border-radius:11px;padding:11px;font-size:13px;cursor:pointer;background:#173f3d;color:#fff}
+.storage-btn.primary:disabled{opacity:.55;cursor:default}
+.storage-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:#7b8e8a}
+.storage-link{border:0;background:transparent;color:#177a63;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.storage-link.import{cursor:pointer}
+
+/* ——— Предупреждение за квота ——— */
+.quota-note{font-size:11px;color:#a86a2b;background:#fff6e9;border:1px solid #f0dcb8;border-radius:10px;padding:9px 11px;margin:12px 0 0}
+
+/* ——— Караоке подсветяване (дума по дума) ——— */
+.reading-view .active-chunk{background:transparent}
+.reading-view .active-chunk .current-word{background:#ffe45c;color:#2b312f;border-radius:4px;padding:1px 2px;font-weight:700}
+.reading-view .active-chunk .read-word{color:#9aa39f}
+
+:root[data-theme="dark"] .bookmark-chip{background:#2a1f1c;border-color:#4a352f}
+:root[data-theme="dark"] .quota-note{background:#2a2416;border-color:#4a3f22;color:#e0c78a}
+:root[data-theme="dark"] .storage-row{color:#9aa9a4}
