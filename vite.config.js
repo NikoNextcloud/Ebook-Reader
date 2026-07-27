@@ -11,6 +11,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'favicon.jpg', 'voxora-logo.png'],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        navigateFallback: '/index.html',
+      },
       manifest: {
         name: 'Voxora AI Reader',
         short_name: 'Voxora',
@@ -26,6 +31,38 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'react-vendor',
+              test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              priority: 30,
+            },
+            {
+              name: 'google-ai',
+              test: /node_modules[\\/]@google[\\/]genai[\\/]/,
+              priority: 20,
+            },
+            {
+              name: 'document-readers',
+              test: /node_modules[\\/](mammoth|jszip|pdfjs-dist|tesseract\.js)[\\/]/,
+              priority: 10,
+              maxSize: 420 * 1024,
+            },
+            {
+              name: 'vendor',
+              test: /node_modules[\\/]/,
+              priority: 1,
+              maxSize: 420 * 1024,
+            },
+          ],
+        },
+      },
+    },
+  },
   define: {
     // Запазено за съвместимост — винаги празно, ключът идва от localStorage.
     __GEMINI_API_KEY__: JSON.stringify(''),
