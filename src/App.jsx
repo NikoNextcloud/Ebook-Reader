@@ -5,22 +5,29 @@ import SpeedControl from './components/SpeedControl';
 import MusicSelector from './components/MusicSelector';
 import SleepTimer from './components/SleepTimer';
 import Library from './components/Library';
+import ChapterSelector from './components/ChapterSelector';
 import AudioPlayer from './components/AudioPlayer';
 import { AmbientAudio } from './services/ambientAudio';
 import { GeminiTTS, splitTextForSpeech } from './services/geminiTtsService';
-import { loadBooks, saveBook, updatePosition, removeBook, makeTitle } from './services/library';
+import { loadBooks, saveBook, updatePosition, updateTitle, removeBook, makeTitle } from './services/library';
+import { loadSettings, saveSettings } from './services/settings';
+import { detectLanguage, langLabel } from './services/lang';
 
 const sample = 'Понякога най-добрите истории не чакат да бъдат написани. Те вече са тук — в статиите, които пазим, в бележките, към които се връщаме, и в думите, за които рядко намираме време. Voxora превръща всеки текст в лично аудио изживяване.';
+const THEMES = ['auto', 'light', 'dark'];
+const THEME_ICON = { auto: '◐', light: '☀', dark: '🌙' };
 
 export default function App() {
+  const initial = useRef(loadSettings()).current;
   const [text, setTextState] = useState(sample);
-  const [voice, setVoice] = useState('Kore');
-  const [gender, setGender] = useState('female');
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || (typeof __GEMINI_API_KEY__ !== 'undefined' ? __GEMINI_API_KEY__ : ''));
-  const [rate, setRate] = useState(1);
-  const [music, setMusic] = useState(true);
-  const [genre, setGenre] = useState('chillhop');
-  const [volume, setVolume] = useState(0.32);
+  const [voice, setVoice] = useState(initial.voice);
+  const [gender, setGender] = useState(initial.gender);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [rate, setRate] = useState(initial.rate);
+  const [music, setMusic] = useState(initial.music);
+  const [genre, setGenre] = useState(initial.genre);
+  const [volume, setVolume] = useState(initial.volume);
+  const [theme, setTheme] = useState(initial.theme);
   const [status, setStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
   const [position, setPosition] = useState(null);
@@ -33,6 +40,8 @@ export default function App() {
   const [downloading, setDownloading] = useState(false);
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [sleepRemaining, setSleepRemaining] = useState(null);
+  const [chapters, setChapters] = useState(null);
+  const [activeChapter, setActiveChapter] = useState(0);
 
   const ambient = useRef(new AmbientAudio());
   const tts = useRef(new GeminiTTS());
@@ -42,6 +51,7 @@ export default function App() {
   const activeSpan = useRef(null);
 
   const chunks = useMemo(() => splitTextForSpeech(text), [text]);
+  const language = useMemo(() => detectLanguage(text), [text]);
   const words = useMemo(() => (text.trim() ? text.trim().split(/\s+/).length : 0), [text]);
   const mins = Math.max(1, Math.ceil(words / (165 * rate)));
   const refreshBooks = useCallback(() => setBooks(loadBooks()), []);
@@ -54,24 +64,33 @@ export default function App() {
   }, []);
   useEffect(() => ambient.current.setVolume(volume), [volume]);
   useEffect(() => localStorage.setItem('gemini_api_key', apiKey), [apiKey]);
+  useEffect(() => saveSettings({ voice, gender, rate, music, genre, volume, theme }), [voice, gender, rate, music, genre, volume, theme]);
+  useEffect(() => {
+    const root = document.documentElement;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => root.setAttribute('data-theme', theme === 'auto' ? (media.matches ? 'dark' : 'light') : theme);
+    apply();
+    if (theme === 'auto') {
+      media.addEventListener('change', apply);
+      return () => media.removeEventListener('change', apply);
+    }
+    return undefined;
+  }, [theme]);
   useEffect(() => { if (status === 'speaking' && music) { ambient.current.start(genre); ambient.current.setVolume(volume); } }, [genre]);
   useEffect(() => {
     if (status !== 'speaking') return;
     if (music) { ambient.current.start(genre); ambient.current.setVolume(volume); } else ambient.current.stop();
   }, [music]);
 
-  // Ръчна редакция „откача“ текста от отворената книга (нова ще се създаде при пускане).
   const setText = (value) => {
     setTextState(value);
     if (currentBookId) setCurrentBookId(null);
+    if (chapters) { setChapters(null); setActiveChapter(0); }
   };
 
   const ensureSaved = () => {
     const record = saveBook({ id: currentBookId, title: fileTitle.current, text });
-    if (record) {
-      setCurrentBookId(record.id);
-      refreshBooks();
-    }
+    if (record) { setCurrentBookId(record.id); refreshBooks(); }
     return record;
   };
 
@@ -93,6 +112,7 @@ export default function App() {
         apiKey: apiKey.trim(),
         voiceName: voice,
         rate,
+        language,
         startChunk: startChunk || 0,
         onChunk: (index) => { setActiveChunk(index); if (bookId) updatePosition(bookId, index); },
         onPosition: (pos) => {
@@ -104,7 +124,7 @@ export default function App() {
                 position: Math.min(pos.chunkTime, pos.chunkDuration),
                 playbackRate: rate,
               });
-            } catch { /* някои браузъри отказват при бърза смяна */ }
+            } catch { /* игнорирай */ }
           }
         },
         onProgress: setProgress,
@@ -145,6 +165,8 @@ export default function App() {
     await beginPlayback(text, 0, record?.id);
   };
 
+  const retry = () => beginPlayback(text, tts.current.currentChunk || 0, currentBookId);
+
   const preview = async (name) => {
     if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да чуеш гласа.'); return; }
     previewTts.current.stop();
@@ -152,7 +174,7 @@ export default function App() {
     setVoice(name);
     try {
       await previewTts.current.generate('Здравей! Аз съм твоят разказвач. Така ще звучи текстът, който избереш.', {
-        apiKey: apiKey.trim(), voiceName: name, rate: 1, singleChunk: true, onEnd: () => setPreviewing(''),
+        apiKey: apiKey.trim(), voiceName: name, rate: 1, language, singleChunk: true, onEnd: () => setPreviewing(''),
       });
     } catch (error) {
       setMessage(error.message || 'Пробата на гласа не може да се зареди.');
@@ -167,12 +189,15 @@ export default function App() {
   const seek = (fraction) => tts.current.seekFraction(fraction);
   const next = () => tts.current.next();
   const prev = () => tts.current.prev();
+  const cycleTheme = () => setTheme((current) => THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]);
 
   // ——— Библиотека ———
   const openBook = (book) => {
     tts.current.stop();
     ambient.current.stop();
     setTextState(book.text);
+    setChapters(null);
+    setActiveChapter(0);
     fileTitle.current = book.title;
     setCurrentBookId(book.id);
     setStatus('idle');
@@ -183,14 +208,28 @@ export default function App() {
   };
   const resumeBook = (book) => { openBook(book); beginPlayback(book.text, book.chunkIndex || 0, book.id); };
   const deleteBook = (id) => { removeBook(id); if (id === currentBookId) setCurrentBookId(null); refreshBooks(); };
-  const onFileLoaded = (title, loadedText) => {
+  const renameBook = (id, title) => { updateTitle(id, title); if (id === currentBookId) fileTitle.current = title; refreshBooks(); };
+  const onLoaded = ({ title, text: loadedText, chapters: loadedChapters }) => {
     fileTitle.current = title;
+    setChapters(loadedChapters || null);
+    setActiveChapter(0);
     const record = saveBook({ title, text: loadedText });
     if (record) { setCurrentBookId(record.id); refreshBooks(); }
   };
+  const selectChapter = (index) => {
+    if (!chapters?.[index]) return;
+    tts.current.stop();
+    ambient.current.stop();
+    setActiveChapter(index);
+    setTextState(chapters[index].text);
+    setStatus('idle');
+    setProgress(0);
+    setPosition(null);
+    setActiveChunk(-1);
+  };
   const saveCurrent = () => {
     const record = saveBook({ id: currentBookId, title: fileTitle.current || makeTitle(text), text });
-    if (record) { setCurrentBookId(record.id); refreshBooks(); setMessage('Запазено в библиотеката.'); }
+    if (record) { setCurrentBookId(record.id); refreshBooks(); setMessage('Запазено в библиотеката — можеш да редактираш заглавието с ✎.'); }
   };
 
   // ——— Сваляне на аудиото ———
@@ -200,7 +239,7 @@ export default function App() {
     setDownloading(true);
     setMessage('Подготвям аудио файла… (може да отнеме време при дълъг текст)');
     try {
-      downloadTts.current.prepare(text, { apiKey: apiKey.trim(), voiceName: voice, rate });
+      downloadTts.current.prepare(text, { apiKey: apiKey.trim(), voiceName: voice, rate, language });
       const blob = await downloadTts.current.downloadAll(() => {});
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -238,6 +277,19 @@ export default function App() {
     return () => clearInterval(id);
   }, [sleepMinutes]);
 
+  // ——— Клавишни комбинации ———
+  useEffect(() => {
+    const onKey = (event) => {
+      const tag = event.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (event.code === 'Space') { event.preventDefault(); status === 'speaking' ? pause() : speak(false); }
+      else if (event.code === 'ArrowLeft') skip(-15);
+      else if (event.code === 'ArrowRight') skip(15);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [status, text, apiKey, voice, rate, language, music]);
+
   // ——— Медийни контроли на заключен екран / слушалки ———
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
@@ -260,11 +312,10 @@ export default function App() {
       seekforward: () => skip(15),
     };
     Object.entries(handlers).forEach(([action, handler]) => {
-      try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* неподдържано действие */ }
+      try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* неподдържано */ }
     });
   }, [status, currentBookId, voice, books]);
 
-  // Автоскрол към текущото изречение във follow-along изгледа.
   useEffect(() => {
     if (focusMode && activeSpan.current) activeSpan.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [activeChunk, focusMode]);
@@ -275,6 +326,7 @@ export default function App() {
         <a className="brand" href="#top"><span>V</span>VOXORA</a>
         <div className="header-right">
           <span className="status-dot">● Gemini AI Audio</span>
+          <button className="theme-toggle" onClick={cycleTheme} aria-label={`Тема: ${theme}`} title={`Тема: ${theme}`}>{THEME_ICON[theme]}</button>
           <button className="profile" aria-label="Профил">В</button>
         </div>
       </header>
@@ -288,14 +340,21 @@ export default function App() {
           <div className="orb" aria-hidden="true"><i /><i /><i /><span>▶</span></div>
         </section>
         <div className="workspace">
-          <TextInput text={text} setText={setText} onFileName={onFileLoaded} />
+          <TextInput text={text} setText={setText} onLoaded={onLoaded} />
           <aside className="card settings">
-            <Library books={books} activeId={currentBookId} onOpen={openBook} onResume={resumeBook} onRemove={deleteBook} />
+            <Library books={books} activeId={currentBookId} onOpen={openBook} onResume={resumeBook} onRemove={deleteBook} onRename={renameBook} />
+            <ChapterSelector chapters={chapters} active={activeChapter} onSelect={selectChapter} />
             <VoiceSelector selected={voice} onSelect={setVoice} gender={gender} onGender={setGender} apiKey={apiKey} onApiKey={setApiKey} onPreview={preview} previewing={previewing} />
+            {text.trim() && <p className="lang-badge">Разпознат език: <b>{langLabel(language)}</b></p>}
             <SpeedControl value={rate} onChange={setRate} />
             <MusicSelector enabled={music} setEnabled={setMusic} genre={genre} setGenre={setGenre} volume={volume} setVolume={setVolume} />
             <SleepTimer minutes={sleepMinutes} onChange={setSleepMinutes} remaining={sleepRemaining} />
-            {message && <p className={`app-message ${status === 'error' ? 'error' : ''}`}>{message}</p>}
+            {message && (
+              <p className={`app-message ${status === 'error' ? 'error' : ''}`}>
+                {message}
+                {status === 'error' && <button className="retry" onClick={retry}>Опитай пак оттук</button>}
+              </p>
+            )}
             <div className="action-row">
               <button className="start" disabled={!text.trim() || status === 'loading'} onClick={() => speak(true)}>
                 <span>{status === 'loading' ? '…' : '▶'}</span>

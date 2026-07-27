@@ -56,4 +56,15 @@ export const updatePosition = (id, chunkIndex) => {
   write(list);
 };
 
+export const updateTitle = (id, title) => {
+  const clean = (title || '').trim();
+  if (!id || !clean) return;
+  const list = read();
+  const book = list.find((item) => item.id === id);
+  if (!book) return;
+  book.title = clean.length > 80 ? clean.slice(0, 80) : clean;
+  book.updatedAt = Date.now();
+  write(list);
+};
+
 export const removeBook = (id) => write(read().filter((book) => book.id !== id));

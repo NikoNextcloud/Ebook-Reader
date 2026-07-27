@@ -41,3 +41,69 @@
   .player{grid-template-columns:1fr}
   .player-actions{justify-content:center}
 }
+
+/* ——— Редактиране на заглавие в библиотеката ——— */
+.library-item{grid-template-columns:1fr auto auto auto}
+.library-edit{grid-column:1;border:1px solid #ed735e;border-radius:8px;padding:7px;font-size:12px;color:#173333;background:#fff}
+.library-edit-btn{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:#7b8e8a;font-size:11px;cursor:pointer}
+.library-edit-btn:hover{background:#eef1ee}
+
+/* ——— Глави ——— */
+.chapter-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
+.chapter-list button{display:grid;grid-template-columns:26px 1fr;align-items:center;gap:8px;text-align:left;border:1px solid #dce3df;border-radius:10px;padding:8px;background:#fff;color:#294744;cursor:pointer}
+.chapter-list button.active{border-color:#ed735e;background:#fff8f5}
+.chapter-list button span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#173f3d;color:#fff;font-size:10px}
+.chapter-list button b{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ——— Линк поле, действия, език ——— */
+.text-actions{display:flex;gap:8px}
+.upload.ghost{background:transparent;border:1px solid #cdd6d1;color:#294744}
+.url-row{display:flex;gap:8px;margin:0 0 12px}
+.url-row input{flex:1;border:1px solid #cdd6d1;border-radius:10px;padding:9px 11px;font-size:13px}
+.url-row button{border:0;border-radius:10px;padding:0 15px;background:#173f3d;color:#fff;cursor:pointer}
+.lang-badge{font-size:11px;color:#7b8e8a;margin:10px 1px 0}
+.lang-badge b{color:#294744}
+.text-card.dragging{outline:2px dashed #ed735e;outline-offset:-6px}
+
+/* ——— Тема бутон и retry ——— */
+.theme-toggle{width:32px;height:32px;border:1px solid #cdd6d1;border-radius:50%;background:transparent;color:inherit;font-size:14px;cursor:pointer}
+.retry{display:block;margin-top:8px;border:0;border-radius:9px;padding:8px 14px;background:#ec705a;color:#fff;font-size:12px;cursor:pointer}
+
+/* ——— Крах екран ——— */
+.crash{max-width:420px;margin:18vh auto;text-align:center;padding:0 20px}
+.crash button{margin-top:14px;border:0;border-radius:11px;padding:11px 22px;background:#ec705a;color:#fff;cursor:pointer}
+
+/* ——— По-малко движение при предпочитание ——— */
+@media (prefers-reduced-motion: reduce){
+  .pulse-reader>i,.pulse-core,.orb i{animation:none!important}
+  *{scroll-behavior:auto!important}
+}
+
+/* ——— Тъмна тема ——— */
+:root[data-theme="dark"]{background:#0f1a1a;color:#e7ece9}
+:root[data-theme="dark"] body{background:radial-gradient(circle at 85% 8%,#17302b 0,transparent 25%),#0f1a1a;color:#e7ece9}
+:root[data-theme="dark"] html{background:#0f1a1a;color:#e7ece9}
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .settings{background:#16211f;border-color:#26332f;color:#e7ece9}
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .url-row input,
+:root[data-theme="dark"] .api-key-field input,
+:root[data-theme="dark"] .library-edit{background:#0f1a1a;color:#e7ece9;border-color:#2c3a36}
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] .brand{color:#f1f4f2}
+:root[data-theme="dark"] .control-section{border-color:#243230}
+:root[data-theme="dark"] .ai-voice-card,
+:root[data-theme="dark"] .library-item,
+:root[data-theme="dark"] .chapter-list button,
+:root[data-theme="dark"] .sleep-options button,
+:root[data-theme="dark"] .gender-picker button{background:#1c2b28;border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="dark"] .ai-voice-card.active,
+:root[data-theme="dark"] .library-item.active,
+:root[data-theme="dark"] .chapter-list button.active,
+:root[data-theme="dark"] .sleep-options button.active{background:#2a1f1c;border-color:#ed735e}
+:root[data-theme="dark"] .theme-toggle{border-color:#2c3a36}
+:root[data-theme="dark"] .upload.ghost{border-color:#2c3a36;color:#dbe3e0}
+:root[data-theme="dark"] .reading-view{background:#1c2416;border-color:#3a4a1e}
+:root[data-theme="dark"] .reading-view p{color:#d5ddd8}

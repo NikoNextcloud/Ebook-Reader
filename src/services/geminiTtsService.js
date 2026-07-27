@@ -1,6 +1,8 @@
 import { GoogleGenAI, Modality } from '@google/genai';
+import { idbGet, idbSet } from './idbCache';
+import { langName } from './lang';
 
-// Кеш на генерирания звук за целия сеанс — пести Gemini квота при повторно четене.
+// Кеш в паметта за бърз достъп; IndexedDB пази звука между сесиите (офлайн).
 const audioCache = new Map();
 const MAX_CHUNK_LENGTH = 2600;
 const SAMPLE_RATE = 24000;
@@ -126,7 +128,7 @@ const paceInstruction = (rate) => {
   return 'естествено, спокойно и с добра дикция';
 };
 
-const buildPrompt = (text, rate) => `Прочети следния български текст ${paceInstruction(rate)}, като професионален разказвач на аудиокнига. Не добавяй думи, не пропускай думи и не обяснявай задачата. Чети само текста:
+const buildPrompt = (text, rate, language = 'bg') => `Прочети следния ${langName(language)} текст ${paceInstruction(rate)}, като професионален разказвач на аудиокнига. Не добавяй думи, не пропускай думи и не обяснявай задачата. Чети само текста:
 
 ${text}`;
 
@@ -138,7 +140,7 @@ const hash = (value) => {
   return (h >>> 0).toString(36);
 };
 
-const cacheKey = (voiceName, rate, chunkText) => `${voiceName}|${rateBucket(rate)}|${hash(chunkText)}`;
+const cacheKey = (voiceName, rate, language, chunkText) => `${voiceName}|${language}|${rateBucket(rate)}|${hash(chunkText)}`;
 
 export class GeminiTTS {
   constructor() {
@@ -180,21 +182,30 @@ export class GeminiTTS {
     }
   }
 
-  // Връща (или генерира) звука за парче — с кеш и споделяне на паралелни заявки.
+  // Връща (или генерира) звука за парче — памет → IndexedDB → Gemini.
   blobForChunk(index) {
     if (index < 0 || index >= this.chunks.length) return Promise.resolve(null);
 
-    const { voiceName, rate = 1 } = this.options;
-    const key = cacheKey(voiceName, rate, this.chunks[index]);
+    const { voiceName, rate = 1, language = 'bg' } = this.options;
+    const key = cacheKey(voiceName, rate, language, this.chunks[index]);
 
     if (audioCache.has(key)) return Promise.resolve(audioCache.get(key));
     if (this.inflight.has(key)) return this.inflight.get(key);
 
-    const promise = this.requestWithFallback(buildPrompt(this.chunks[index], rate), voiceName)
-      .then((blob) => {
-        audioCache.set(key, blob);
-        this.inflight.delete(key);
-        return blob;
+    const promise = idbGet(key)
+      .then((stored) => {
+        if (stored) {
+          audioCache.set(key, stored);
+          this.inflight.delete(key);
+          return stored;
+        }
+        return this.requestWithFallback(buildPrompt(this.chunks[index], rate, language), voiceName)
+          .then((blob) => {
+            audioCache.set(key, blob);
+            idbSet(key, blob);
+            this.inflight.delete(key);
+            return blob;
+          });
       })
       .catch((error) => {
         this.inflight.delete(key);
