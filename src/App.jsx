@@ -29,7 +29,9 @@ import {
   addAudioBookmark, removeAudioBookmark, exportLibrary, importLibrary,
   getLibraryWriteError, clearLibraryWriteError,
 } from './services/library';
-import { downloadRemoteItem, openRemoteCatalog } from './services/remoteBooks';
+import {
+  audioStreamUrl, downloadRemoteItem, isMegaUrl, openRemoteCatalog,
+} from './services/remoteBooks';
 import { setRemoteFavorite } from './services/remoteFavorites';
 import { loadSettings, saveSettings } from './services/settings';
 import { detectLanguage, langLabel } from './services/lang';
@@ -429,26 +431,28 @@ export default function App() {
     });
     if (record) { setCurrentBookId(record.id); refreshBooks(); }
   };
-  const openAudioBook = ({ file, metadata, cover }, context = {}) => {
+  const openAudioBook = ({ file, streamUrl, name, metadata, cover }, context = {}) => {
     tts.current.stop();
     ambient.current.stop();
     setStatus('stopped');
     setPlayerOpen(false);
     audioBookUrls.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
-    const audioUrl = URL.createObjectURL(file);
+    // При поток няма локален файл — плеърът чете направо от сървъра.
+    const audioUrl = streamUrl || URL.createObjectURL(file);
     const coverUrl = cover ? URL.createObjectURL(cover) : '';
-    audioBookUrls.current = [audioUrl, coverUrl].filter(Boolean);
+    audioBookUrls.current = [streamUrl ? '' : audioUrl, coverUrl].filter(Boolean);
     const sourceBook = context.book || context.item || {};
+    const fileName = file?.name || name || '';
     const title = metadata?.title
       || sourceBook.name?.replace(/\.(m4b|m4a|mp3|aac)$/i, '')
-      || file.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '');
+      || fileName.replace(/\.(m4b|m4a|mp3|aac)$/i, '');
     const sourceUrl = sourceBook.url || context.item?.url || '';
     const record = saveAudioBook({
       id: context.libraryId,
       title,
       author: metadata?.authors?.join(', ') || context.author || '',
       narrator: metadata?.narrators?.join(', ') || '',
-      fileName: file.name,
+      fileName,
       source: context.source || 'mega',
       sourceUrl,
       remoteKey: context.remoteKey,
@@ -457,7 +461,7 @@ export default function App() {
     });
     if (record) {
       refreshBooks();
-      if (!context.fromCache && (record.source === 'mega' || context.source === 'mega')) {
+      if (file && !context.fromCache && (record.source === 'mega' || context.source === 'mega')) {
         cacheAudioBook({
           remoteKey: record.remoteKey,
           sourceUrl: record.sourceUrl,
@@ -485,7 +489,7 @@ export default function App() {
       narrator: metadata?.narrators?.join(', ') || record?.narrator || '',
       audioUrl,
       coverUrl,
-      fileName: file.name,
+      fileName,
       favorite: !!record?.favorite,
       initialTime: record?.audioPosition || 0,
       audioBookmarks: record?.audioBookmarks || [],
@@ -551,6 +555,22 @@ export default function App() {
         setMessage('Аудиокнигата е заредена бързо от паметта на телефона.');
         return;
       }
+      // Mega книгите се пускат на поток — тръгват веднага, без сваляне.
+      if (isMegaUrl(book.sourceUrl)) {
+        openAudioBook(
+          { streamUrl: audioStreamUrl(book.sourceUrl), name: book.fileName || book.title },
+          {
+            book,
+            libraryId: book.id,
+            favorite: book.favorite,
+            remoteKey: book.remoteKey,
+            source: book.source,
+          },
+        );
+        setMessage('');
+        return;
+      }
+
       setMessage(`Зареждам „${book.title}“ от Storytel…`);
       const catalog = await openRemoteCatalog(book.sourceUrl, book.title);
       const item = catalog.items[0];

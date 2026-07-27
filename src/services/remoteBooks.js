@@ -4,6 +4,11 @@ const fourEtiCache = new Map();
 
 export const MAX_IN_APP_AUDIO_BYTES = 220 * 1024 * 1024;
 
+// Адрес, от който плеърът пуска аудиокнигата НА ПОТОК през нашия сървър.
+// Така телефонът тегли само парчето, което свири, вместо целия файл —
+// това е и решението за iPhone, където големите файлове задръстваха паметта.
+export const audioStreamUrl = (url) => `/api/mega-stream?url=${encodeURIComponent(url)}`;
+
 export const normalizeRemoteUrl = (value) => (
   /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`
 );

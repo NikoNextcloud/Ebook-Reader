@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  audioStreamUrl,
   discoverFourEtiPage,
   downloadRemoteItem,
   formatRemoteSize,
@@ -106,13 +107,6 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   };
 
   const importRemoteItem = async (item, context = {}) => {
-    // Свалянето е на части и не пълни паметта, затова и големите книги
-    // тръгват направо — без „Отвори“ във външно хранилище и без питане.
-    setProgress({ percent: 0, received: 0, total: item.size || 0 });
-    const downloaded = await downloadRemoteItem(item, (percent, received, total) => {
-      setProgress({ percent, received, total });
-    });
-    setProgress(null);
     const book = context.book || item;
     const key = remoteBookKey(source, book);
     const details = {
@@ -122,8 +116,25 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
       favorite: favoriteKeys.has(key),
       remoteKey: key,
     };
-    if (item.kind === 'audio') onAudio(downloaded, details);
-    else await onDocument(downloaded.file, details);
+
+    // Аудиокнигите вече НЕ се свалят цели. Плеърът ги пуска на поток през
+    // /api/mega-stream и тегли само парчето, което свири — така тръгват
+    // веднага и не задръстват паметта на телефона (проблемът на iPhone).
+    if (item.kind === 'audio' && item.provider === 'mega') {
+      onAudio({ streamUrl: audioStreamUrl(item.url), name: item.name, size: item.size }, details);
+      return;
+    }
+
+    setProgress({ percent: 0, received: 0, total: item.size || 0 });
+    try {
+      const downloaded = await downloadRemoteItem(item, (percent, received, total) => {
+        setProgress({ percent, received, total });
+      });
+      if (item.kind === 'audio') onAudio(downloaded, details);
+      else await onDocument(downloaded.file, details);
+    } finally {
+      setProgress(null);
+    }
   };
 
   const chooseFourEtiBook = async (book) => {
