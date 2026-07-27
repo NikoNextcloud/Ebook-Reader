@@ -10,6 +10,7 @@ import StoragePanel from './components/StoragePanel';
 import Home from './components/Home';
 import NowPlaying from './components/NowPlaying';
 import AudioPlayer from './components/AudioPlayer';
+import AudiobookPlayer from './components/AudiobookPlayer';
 import { AmbientAudio } from './services/ambientAudio';
 import {
   AUDIO_GESTURE_REQUIRED,
@@ -62,6 +63,7 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [stats, setStats] = useState(() => getStats());
   const [voiceEnergy, setVoiceEnergy] = useState(0);
+  const [audioBook, setAudioBook] = useState(null);
 
   const ambient = useRef(new AmbientAudio());
   const tts = useRef(new GeminiTTS());
@@ -74,6 +76,7 @@ export default function App() {
   const queueRef = useRef([]);
   const beginPlaybackRef = useRef(() => {});
   const openAndPlayRef = useRef(() => {});
+  const audioBookUrls = useRef([]);
 
   const chunks = useMemo(() => splitTextForSpeech(text), [text]);
   const language = useMemo(() => detectLanguage(text), [text]);
@@ -99,6 +102,7 @@ export default function App() {
     previewTts.current.stop();
     downloadTts.current.stop();
     ambient.current.stop();
+    audioBookUrls.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
   useEffect(() => ambient.current.setVolume(volume), [volume]);
   useEffect(() => localStorage.setItem('gemini_api_key', apiKey), [apiKey]);
@@ -328,6 +332,29 @@ export default function App() {
     const record = saveBook({ title, text: loadedText, author, cover });
     if (record) { setCurrentBookId(record.id); refreshBooks(); }
   };
+  const openAudioBook = ({ file, metadata, cover }) => {
+    tts.current.stop();
+    ambient.current.stop();
+    setStatus('stopped');
+    setPlayerOpen(false);
+    audioBookUrls.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    const audioUrl = URL.createObjectURL(file);
+    const coverUrl = cover ? URL.createObjectURL(cover) : '';
+    audioBookUrls.current = [audioUrl, coverUrl].filter(Boolean);
+    setAudioBook({
+      title: metadata?.title || file.name.replace(/\.(m4b|m4a|mp3|aac)$/i, ''),
+      author: metadata?.authors?.join(', ') || '',
+      narrator: metadata?.narrators?.join(', ') || '',
+      audioUrl,
+      coverUrl,
+      fileName: file.name,
+    });
+  };
+  const closeAudioBook = () => {
+    setAudioBook(null);
+    audioBookUrls.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    audioBookUrls.current = [];
+  };
   const selectChapter = (index) => {
     if (!chapters?.[index]) return;
     setActiveChapter(index);
@@ -502,7 +529,7 @@ export default function App() {
             <div className="orb" aria-hidden="true"><i /><i /><i /><span>▶</span></div>
           </section>
           <div className="workspace">
-            <TextInput text={text} setText={setText} onLoaded={onLoaded} />
+            <TextInput text={text} setText={setText} onLoaded={onLoaded} onAudioLoaded={openAudioBook} />
             <aside className="card settings">
               <Library
                 books={books}
@@ -601,6 +628,7 @@ export default function App() {
           onChapterMode={setChapterMode}
         />
       )}
+      {audioBook && <AudiobookPlayer book={audioBook} onClose={closeAudioBook} />}
       {view === 'create' && <footer>VOXORA · Gemini AI гласове</footer>}
     </>
   );

@@ -1,0 +1,250 @@
+const DOCUMENT_RE = /\.(txt|md|markdown|rtf|html?|docx|pdf|epub)$/i;
+const AUDIO_RE = /\.(m4b|m4a|mp3|aac)$/i;
+
+export const MAX_IN_APP_AUDIO_BYTES = 220 * 1024 * 1024;
+
+export const normalizeRemoteUrl = (value) => (
+  /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`
+);
+
+export const formatRemoteSize = (bytes = 0) => {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+};
+
+export const isMegaUrl = (value) => {
+  try {
+    return /(^|\.)mega\.nz$/i.test(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+};
+
+export const isFourEtiUrl = (value) => {
+  try {
+    return /(^|\.)4eti\.me$/i.test(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+};
+
+export const isYandexPublicUrl = (value) => {
+  try {
+    return /(^|\.)(yadi\.sk|disk\.yandex\.[a-z]+)$/i.test(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+};
+
+const supportedKind = (name = '') => {
+  if (DOCUMENT_RE.test(name)) return 'document';
+  if (AUDIO_RE.test(name)) return 'audio';
+  return null;
+};
+
+const cleanLink = (value) => value.replace(/&amp;/g, '&').replace(/\\([()])/g, '$1');
+
+export const extractDownloadLinks = (markdown) => {
+  const result = [];
+  const seen = new Set();
+  const linkRe = /\[([^\]]+)\]\((https?:\/\/(?:\\.|[^)])+)\)/g;
+  let match = linkRe.exec(markdown);
+
+  while (match) {
+    const label = match[1].trim();
+    const url = cleanLink(match[2].trim());
+    const directFile = supportedKind(new URL(url).pathname);
+    const externalAction = /свали|download|прочети/i.test(label) && !isFourEtiUrl(url);
+    const likelyDownload = externalAction || isMegaUrl(url) || isYandexPublicUrl(url) || directFile;
+
+    if (likelyDownload && !seen.has(url)) {
+      seen.add(url);
+      result.push({ id: `source-${result.length}`, kind: 'source', name: label, url });
+    }
+    match = linkRe.exec(markdown);
+  }
+
+  return result;
+};
+
+export const extractFourEtiBookLinks = (markdown) => {
+  const result = [];
+  const seen = new Set();
+  const headingLinkRe = /^#{2,6}\s+\[([^\]]+)\]\((https?:\/\/(?:www\.)?4eti\.me\/[^)\s]+)\)/gim;
+  let match = headingLinkRe.exec(markdown);
+  while (match) {
+    const name = match[1].trim();
+    const url = cleanLink(match[2].trim());
+    if (!seen.has(url)) {
+      seen.add(url);
+      result.push({ id: `4eti-page-${result.length}`, kind: 'page', name, url });
+    }
+    match = headingLinkRe.exec(markdown);
+  }
+  return result;
+};
+
+export const discoverFourEtiPage = async (url) => {
+  const response = await fetch(`https://r.jina.ai/${url}`);
+  if (!response.ok) throw new Error(`4eti.me не отговори (HTTP ${response.status}).`);
+  const markdown = await response.text();
+  const title = markdown.match(/^Title:\s*(.+)$/m)?.[1]?.trim()
+    || markdown.match(/^#\s+(.+)$/m)?.[1]?.trim()
+    || '4eti.me';
+  const downloads = extractDownloadLinks(markdown);
+  const items = downloads.length ? downloads : extractFourEtiBookLinks(markdown);
+  if (!items.length) {
+    throw new Error('Не е намерен публичен PDF/EPUB/DOCX линк. Постави адреса на конкретната книга, а не началната страница.');
+  }
+  return { title: downloads.length ? title : '4eti.me · книги', items };
+};
+
+const megaChildLink = (rootUrl, node) => {
+  try {
+    const parsed = new URL(rootUrl);
+    const folderId = parsed.pathname.match(/\/folder\/([^/]+)/i)?.[1];
+    const key = parsed.hash.slice(1).split('/')[0];
+    const childId = Array.isArray(node.downloadId) ? node.downloadId.at(-1) : node.downloadId;
+    if (folderId && key && childId) return `https://mega.nz/folder/${folderId}#${key}/file/${childId}`;
+  } catch {
+    // Връщаме оригиналния адрес.
+  }
+  return rootUrl;
+};
+
+const megaPath = (node, root) => {
+  const parts = [node.name];
+  let parent = node.parent;
+  while (parent && parent !== root) {
+    if (parent.name) parts.unshift(parent.name);
+    parent = parent.parent;
+  }
+  return parts.join(' / ');
+};
+
+export const loadMegaCatalog = async (url) => {
+  const { File: MegaFile } = await import('megajs');
+  const root = MegaFile.fromURL(url);
+  const selected = await root.loadAttributes();
+  const nodes = selected.children
+    ? selected.filter((node) => !node.children && supportedKind(node.name), true)
+    : [selected].filter((node) => supportedKind(node.name));
+
+  if (!nodes.length) throw new Error('В тази Mega връзка няма поддържани книги или аудиокниги.');
+
+  const items = nodes.map((node, index) => ({
+    id: `mega-${index}`,
+    kind: supportedKind(node.name),
+    name: node.name,
+    path: megaPath(node, selected),
+    size: node.size || 0,
+    url: megaChildLink(url, node),
+    provider: 'mega',
+    _node: node,
+  }));
+
+  return { title: selected.name || 'Mega', items };
+};
+
+const yandexApi = 'https://cloud-api.yandex.net/v1/disk/public/resources';
+
+export const loadYandexCatalog = async (publicUrl) => {
+  const response = await fetch(`${yandexApi}?limit=1000&public_key=${encodeURIComponent(publicUrl)}`);
+  if (!response.ok) throw new Error(`Yandex Disk не отговори (HTTP ${response.status}).`);
+  const metadata = await response.json();
+  const nodes = metadata.type === 'dir' ? (metadata._embedded?.items || []) : [metadata];
+  const items = nodes
+    .filter((node) => node.type === 'file' && supportedKind(node.name))
+    .map((node, index) => ({
+      id: `yandex-${index}`,
+      kind: supportedKind(node.name),
+      name: node.name,
+      path: metadata.type === 'dir' ? metadata.name : '',
+      size: node.size || 0,
+      url: node.file,
+      provider: 'yandex',
+    }));
+
+  if (!items.length) throw new Error('В публичната Yandex папка няма поддържан PDF, EPUB или DOCX файл.');
+  return { title: metadata.name || 'Yandex Disk', items };
+};
+
+export const loadDirectCatalog = async (url, label = '') => {
+  const parsed = new URL(url);
+  const name = decodeURIComponent(parsed.pathname.split('/').pop() || label || 'Книга');
+  const kind = supportedKind(name);
+  if (!kind) throw new Error('Този линк не води към поддържан PDF, EPUB, DOCX или аудиофайл.');
+  return {
+    title: label || name,
+    items: [{
+      id: 'direct-0',
+      kind,
+      name,
+      path: parsed.hostname,
+      size: 0,
+      url,
+      provider: 'direct',
+    }],
+  };
+};
+
+export const openRemoteCatalog = async (url, label = '') => {
+  if (isMegaUrl(url)) return loadMegaCatalog(url);
+  if (isYandexPublicUrl(url)) return loadYandexCatalog(url);
+  return loadDirectCatalog(url, label);
+};
+
+const downloadBuffer = async (node) => new Uint8Array(await node.downloadBuffer());
+
+const downloadMegaMetadata = async (node) => {
+  const siblings = node.parent?.children || [];
+  const metadataNode = siblings.find((item) => /^metadata\.json$/i.test(item.name || ''));
+  const coverNode = siblings.find((item) => /\.(jpe?g|png|webp)$/i.test(item.name || ''));
+  let metadata = null;
+  let cover = null;
+
+  if (metadataNode) {
+    try {
+      metadata = JSON.parse(new window.TextDecoder().decode(await downloadBuffer(metadataNode)));
+    } catch {
+      metadata = null;
+    }
+  }
+  if (coverNode && coverNode.size < 5 * 1024 * 1024) {
+    try {
+      cover = new Blob([await downloadBuffer(coverNode)], {
+        type: /\.png$/i.test(coverNode.name) ? 'image/png' : 'image/jpeg',
+      });
+    } catch {
+      cover = null;
+    }
+  }
+  return { metadata, cover };
+};
+
+export const downloadRemoteItem = async (item) => {
+  if (item.provider === 'mega') {
+    const bytes = await downloadBuffer(item._node);
+    const file = new window.File([bytes], item.name, {
+      type: item.kind === 'audio' ? 'audio/mp4' : '',
+    });
+    if (item.kind === 'audio') {
+      const extras = await downloadMegaMetadata(item._node);
+      return { file, ...extras };
+    }
+    return { file };
+  }
+
+  const requestUrl = item.provider === 'yandex'
+    ? `/api/remote-file?url=${encodeURIComponent(item.url)}`
+    : item.url;
+  const response = await fetch(requestUrl);
+  if (!response.ok) throw new Error(`Файлът не може да се свали (HTTP ${response.status}).`);
+  const blob = await response.blob();
+  return {
+    file: new window.File([blob], item.name, {
+      type: blob.type || (item.kind === 'audio' ? 'audio/mp4' : ''),
+    }),
+  };
+};
