@@ -20,7 +20,8 @@
     "pdfjs-dist": "6.1.200",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "tesseract.js": "5.1.1"
+    "tesseract.js": "5.1.1",
+    "workbox-window": "7.4.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
