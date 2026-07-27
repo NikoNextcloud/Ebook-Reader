@@ -558,7 +558,7 @@ export default function App() {
       // Mega книгите се пускат на поток — тръгват веднага, без сваляне.
       if (isMegaUrl(book.sourceUrl)) {
         openAudioBook(
-          { streamUrl: audioStreamUrl(book.sourceUrl), name: book.fileName || book.title },
+          { streamUrl: audioStreamUrl(book.sourceUrl, book.fileName), name: book.fileName || book.title },
           {
             book,
             libraryId: book.id,

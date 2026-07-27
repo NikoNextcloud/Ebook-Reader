@@ -15,16 +15,27 @@ vi.mock('megajs', () => ({
         // директното отваряне на връзка от папка се проваля (както на живо)
         return { loadAttributes: async () => { throw new Error('not a file link'); } };
       }
+      // Истинската структура: жанр / автор — заглавие / файл
       return {
         name: 'folder',
         loadAttributes: async () => {},
         children: [
-          { downloadId: ['AAA', 'other'], name: 'druga.m4b', size: 5, download: () => Readable.from([]) },
           {
-            downloadId: ['AAA', 'child42'],
-            name: 'kniga.m4b',
-            size: SIZE,
-            download: ({ start, end }) => Readable.from([Buffer.alloc(end - start + 1, 3)]),
+            name: 'Биографии',
+            children: [
+              {
+                name: 'Ивайло Кунев — Забравените истории',
+                children: [
+                  { downloadId: ['AAA', 'other'], name: 'cover.jpg', size: 5, download: () => Readable.from([]) },
+                  {
+                    downloadId: ['AAA', 'child42'],
+                    name: 'kniga.m4b',
+                    size: SIZE,
+                    download: ({ start, end }) => Readable.from([Buffer.alloc(end - start + 1, 3)]),
+                  },
+                ],
+              },
+            ],
           },
         ],
       };
@@ -68,6 +79,16 @@ describe('връзка към файл вътре в Mega папка', () => {
     expect(res.status).toBe(206);
     expect(res.headers.get('content-range')).toBe(`bytes 0-99/${SIZE}`);
     expect(new Uint8Array(await res.arrayBuffer()).length).toBe(100);
+  });
+
+  it('намира книгата по име, ако идентификаторът във връзката не съвпада', async () => {
+    const stale = 'https://mega.nz/folder/AAA77#thekey/file/starId';
+    const res = await GET(new Request(
+      `https://app.test/api/mega-stream?url=${encodeURIComponent(stale)}&name=${encodeURIComponent('kniga.m4b')}`,
+      { headers: { range: 'bytes=0-49' } },
+    ));
+    expect(res.status).toBe(206);
+    expect(res.headers.get('content-range')).toBe(`bytes 0-49/${SIZE}`);
   });
 
   it('връща разбираема грешка, ако детето липсва', async () => {

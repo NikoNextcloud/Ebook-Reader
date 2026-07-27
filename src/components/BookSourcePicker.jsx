@@ -121,7 +121,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     // /api/mega-stream и тегли само парчето, което свири — така тръгват
     // веднага и не задръстват паметта на телефона (проблемът на iPhone).
     if (item.kind === 'audio' && item.provider === 'mega') {
-      onAudio({ streamUrl: audioStreamUrl(item.url), name: item.name, size: item.size }, details);
+      onAudio({ streamUrl: audioStreamUrl(item.url, item.name), name: item.name, size: item.size }, details);
       return;
     }
 

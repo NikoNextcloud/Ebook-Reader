@@ -51,7 +51,7 @@ const FILE_TTL = 10 * 60 * 1000;
 
 // Връзките от папка изглеждат така: /folder/<id>#<ключ>/file/<childId>.
 // Ако File.fromURL не се справи, отваряме папката и намираме детето.
-const resolveMegaFile = async (url) => {
+const resolveMegaFile = async (url, wantedName = '') => {
   const cached = fileCache.get(url);
   if (cached && Date.now() - cached.at < FILE_TTL) return cached.file;
 
@@ -75,13 +75,31 @@ const resolveMegaFile = async (url) => {
 
     const folder = MegaFile.fromURL(`https://mega.nz/folder/${folderId}#${key}`);
     await folder.loadAttributes();
-    const nodes = folder.children || [];
-    const match = nodes.find((node) => {
-      const id = Array.isArray(node.downloadId) ? node.downloadId.at(-1) : node.downloadId;
-      return id === childId;
-    });
-    if (!match) throw new Error('FILE_NOT_FOUND');
-    file = match;
+
+    // Книгите са в ПОДПАПКИ (жанр / автор — заглавие / файл), затова обхождаме
+    // цялото дърво. Търсенето само в най-горното ниво връщаше FILE_NOT_FOUND.
+    const wanted = wantedName;
+    let byName = null;
+
+    const walk = (node) => {
+      if (!node) return null;
+      if (!node.children) {
+        const id = Array.isArray(node.downloadId) ? node.downloadId.at(-1) : node.downloadId;
+        if (id === childId) return node;
+        if (wanted && node.name === wanted) byName = byName || node;
+        return null;
+      }
+      for (const child of node.children) {
+        const found = walk(child);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    // Ако идентификаторът не съвпадне (напр. връзката е презаписана),
+    // пробваме по име на файла, преди да се предадем.
+    file = walk(folder) || byName;
+    if (!file) throw new Error('FILE_NOT_FOUND');
   }
 
   fileCache.set(url, { file, at: Date.now() });
@@ -89,12 +107,13 @@ const resolveMegaFile = async (url) => {
 };
 
 export async function GET(request) {
-  const source = new URL(request.url).searchParams.get('url') || '';
+  const params = new URL(request.url).searchParams;
+  const source = params.get('url') || '';
   if (!isMegaUrl(source)) return new Response('Неподдържан източник.', { status: 400 });
 
   let file;
   try {
-    file = await resolveMegaFile(source);
+    file = await resolveMegaFile(source, params.get('name') || '');
   } catch (error) {
     // Ясна причина вместо мълчалив 502 — иначе плеърът показва подвеждащо
     // „телефонът блокира звука“, когато проблемът е в източника.
@@ -157,11 +176,12 @@ export async function GET(request) {
 
 // Плеърът първо пита с HEAD за размера и дали се поддържа превъртане.
 export async function HEAD(request) {
-  const source = new URL(request.url).searchParams.get('url') || '';
+  const params = new URL(request.url).searchParams;
+  const source = params.get('url') || '';
   if (!isMegaUrl(source)) return new Response(null, { status: 400 });
 
   try {
-    const file = await resolveMegaFile(source);
+    const file = await resolveMegaFile(source, params.get('name') || '');
     return new Response(null, {
       status: 200,
       headers: {
