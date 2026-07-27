@@ -158,6 +158,16 @@ const hash = (value) => {
 };
 
 const cacheKey = (voiceName, rate, language, chunkText) => `${voiceName}|${language}|${rateBucket(rate)}|${hash(chunkText)}`;
+const fallbackVoiceByGender = { female: 'Kore', male: 'Puck' };
+
+const alternatingVoiceForChunk = (options, index) => {
+  const primary = options.voiceName;
+  if (!options.alternateVoices) return primary;
+
+  const primaryGender = options.gender === 'male' ? 'male' : 'female';
+  const otherGender = primaryGender === 'male' ? 'female' : 'male';
+  return index % 2 === 0 ? primary : fallbackVoiceByGender[otherGender];
+};
 
 export class GeminiTTS {
   constructor() {
@@ -169,6 +179,31 @@ export class GeminiTTS {
     this.options = null;
     this.ai = null;
     this.inflight = new Map();
+    this.unlocked = false;
+    this.audioContext = null;
+    this.analyser = null;
+    this.sourceNode = null;
+    this.energyFrame = null;
+  }
+
+  async unlockAudio() {
+    if (this.unlocked) return;
+    const silent = wavFromPcmBytes(new Uint8Array([0, 0]));
+    const url = URL.createObjectURL(silent);
+    const audio = this.audio || new Audio();
+    const previousVolume = audio.volume;
+    audio.src = url;
+    audio.volume = 0;
+    audio.playsInline = true;
+    if (this.audioContext?.state === 'suspended') await this.audioContext.resume();
+    await audio.play();
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = previousVolume;
+    URL.revokeObjectURL(url);
+    audio.removeAttribute('src');
+    this.audio = audio;
+    this.unlocked = true;
   }
 
   async request(model, prompt, voiceName) {
@@ -203,7 +238,8 @@ export class GeminiTTS {
   blobForChunk(index) {
     if (index < 0 || index >= this.chunks.length) return Promise.resolve(null);
 
-    const { voiceName, rate = 1, language = 'bg' } = this.options;
+    const { rate = 1, language = 'bg' } = this.options;
+    const voiceName = alternatingVoiceForChunk(this.options, index);
     const key = cacheKey(voiceName, rate, language, this.chunks[index]);
 
     if (audioCache.has(key)) return Promise.resolve(audioCache.get(key));
@@ -242,7 +278,7 @@ export class GeminiTTS {
   }
 
   async generate(text, options) {
-    this.stop();
+    this.stop({ keepUnlocked: true });
     this.cancelled = false;
     this.options = options;
     this.ai = new GoogleGenAI({ apiKey: options.apiKey });
@@ -290,7 +326,9 @@ export class GeminiTTS {
   async playBlob(blob, rate, index, onEnd) {
     this.clearAudio();
     this.url = URL.createObjectURL(blob);
-    this.audio = new Audio(this.url);
+    this.audio = this.audio || new Audio();
+    this.audio.src = this.url;
+    this.audio.playsInline = true;
     this.audio.playbackRate = rate;
 
     const total = this.chunks.length || 1;
@@ -306,8 +344,47 @@ export class GeminiTTS {
       });
     };
     this.audio.onended = () => onEnd?.();
+    this.startEnergyMeter();
 
     await this.audio.play();
+  }
+
+  startEnergyMeter() {
+    this.stopEnergyMeter();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!this.audio || !AudioCtx) return;
+
+    try {
+      this.audioContext = this.audioContext || new AudioCtx();
+      this.analyser = this.analyser || this.audioContext.createAnalyser();
+      this.analyser.fftSize = 128;
+      if (!this.sourceNode) {
+        this.sourceNode = this.audioContext.createMediaElementSource(this.audio);
+        this.sourceNode.connect(this.analyser);
+        this.analyser.connect(this.audioContext.destination);
+      }
+      const data = new Uint8Array(this.analyser.frequencyBinCount);
+      const tick = () => {
+        if (!this.audio || this.audio.paused || this.cancelled) {
+          this.options?.onEnergy?.(0);
+          return;
+        }
+        this.analyser.getByteFrequencyData(data);
+        const avg = data.reduce((sum, value) => sum + value, 0) / (data.length * 255);
+        this.options?.onEnergy?.(Math.min(1, avg * 2.8));
+        this.energyFrame = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {
+      this.options?.onEnergy?.(0.35);
+    }
+  }
+
+  stopEnergyMeter() {
+    if (this.energyFrame) {
+      cancelAnimationFrame(this.energyFrame);
+      this.energyFrame = null;
+    }
   }
 
   // ——— Контроли за навигация ———
@@ -370,15 +447,21 @@ export class GeminiTTS {
 
   pause() { this.audio?.pause(); }
 
-  resume() { return this.audio?.play(); }
+  resume() {
+    const playing = this.audio?.play();
+    this.startEnergyMeter();
+    return playing;
+  }
 
   clearAudio() {
     if (this.audio) {
+      this.stopEnergyMeter();
+      this.options?.onEnergy?.(0);
       this.audio.pause();
       this.audio.ontimeupdate = null;
       this.audio.onended = null;
       this.audio.src = '';
-      this.audio = null;
+      this.audio.load();
     }
     if (this.url) {
       URL.revokeObjectURL(this.url);
@@ -386,8 +469,21 @@ export class GeminiTTS {
     }
   }
 
-  stop() {
+  stop({ keepUnlocked = false } = {}) {
     this.cancelled = true;
+    this.stopEnergyMeter();
+    this.options?.onEnergy?.(0);
+    if (keepUnlocked && this.unlocked && this.audio) {
+      this.audio.pause();
+      this.audio.ontimeupdate = null;
+      this.audio.onended = null;
+      if (this.url) {
+        URL.revokeObjectURL(this.url);
+        this.url = null;
+      }
+      return;
+    }
     this.clearAudio();
+    this.unlocked = false;
   }
 }

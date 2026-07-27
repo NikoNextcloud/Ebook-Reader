@@ -75,7 +75,7 @@
 
 /* ——— По-малко движение при предпочитание ——— */
 @media (prefers-reduced-motion: reduce){
-  .pulse-reader>i,.pulse-core,.orb i{animation:none!important}
+  .pulse-reader>i,.pulse-core,.orb i,.voice-glow,.voice-glow:before,.voice-glow i{animation:none!important}
   *{scroll-behavior:auto!important}
 }
 
@@ -183,7 +183,14 @@ header.minimal{justify-content:flex-end}
 .book-actions button.on{color:#ec705a;border-color:#f0cabf;background:#fff6f3}
 
 /* ═══════ Пълноекранен плейър „Сега слушаш“ ═══════ */
-.now-playing{position:fixed;inset:0;z-index:60;overflow-y:auto;background:radial-gradient(circle at 50% 0%,#1b3b38,#0d2626 60%);color:#fff;padding:20px 20px 40px;display:flex;flex-direction:column;align-items:center;gap:16px;animation:overlayIn .3s ease}
+.now-playing{position:fixed;inset:0;z-index:60;overflow-y:auto;background:radial-gradient(circle at 50% 0%,#1b3b38,#0d2626 60%);color:#fff;padding:20px 20px 40px;display:flex;flex-direction:column;align-items:center;gap:16px;animation:overlayIn .3s ease;--voice-energy:0}
+.now-playing>*:not(.voice-glow){position:relative;z-index:1}
+.voice-glow{position:fixed;left:-8vw;right:-8vw;bottom:-20vh;height:58vh;z-index:0;pointer-events:none;overflow:hidden;filter:blur(28px);opacity:calc(.22 + (var(--voice-energy) * .34));mix-blend-mode:screen}
+.voice-glow:before{content:'';position:absolute;inset:24% 0 0;background:radial-gradient(ellipse at 50% 80%,rgba(236,112,90,.78),rgba(255,149,76,.36) 38%,rgba(255,180,90,.13) 66%,transparent 78%);transform:scaleY(calc(.82 + (var(--voice-energy) * .34)));transform-origin:bottom;animation:voiceGlowBreath 5.8s ease-in-out infinite}
+.voice-glow i{position:absolute;bottom:0;width:8vw;min-width:58px;height:44%;border-radius:999px 999px 0 0;background:linear-gradient(to top,rgba(255,111,76,.48),rgba(255,178,76,.2),transparent);transform:translateY(18%) scaleY(calc(.35 + (var(--voice-energy) * 1.55)));transform-origin:bottom;animation:voiceColumn 1.8s ease-in-out infinite}
+.voice-glow i:nth-child(1){left:0%;animation-delay:-.2s}.voice-glow i:nth-child(2){left:6%;animation-delay:-1.1s}.voice-glow i:nth-child(3){left:12%;animation-delay:-.5s}.voice-glow i:nth-child(4){left:18%;animation-delay:-1.5s}.voice-glow i:nth-child(5){left:24%;animation-delay:-.9s}.voice-glow i:nth-child(6){left:30%;animation-delay:-1.9s}.voice-glow i:nth-child(7){left:36%;animation-delay:-.3s}.voice-glow i:nth-child(8){left:42%;animation-delay:-1.3s}.voice-glow i:nth-child(9){left:48%;animation-delay:-.7s}.voice-glow i:nth-child(10){left:54%;animation-delay:-1.7s}.voice-glow i:nth-child(11){left:60%;animation-delay:-.4s}.voice-glow i:nth-child(12){left:66%;animation-delay:-1.4s}.voice-glow i:nth-child(13){left:72%;animation-delay:-.8s}.voice-glow i:nth-child(14){left:78%;animation-delay:-1.8s}.voice-glow i:nth-child(15){left:84%;animation-delay:-.6s}.voice-glow i:nth-child(16){left:90%;animation-delay:-1.6s}.voice-glow i:nth-child(17){left:96%;animation-delay:-1s}.voice-glow i:nth-child(18){left:102%;animation-delay:-2s}
+@keyframes voiceGlowBreath{0%,100%{transform:translateX(-1%) scaleY(calc(.8 + (var(--voice-energy) * .28)))}50%{transform:translateX(1%) scaleY(calc(.96 + (var(--voice-energy) * .42)))}}
+@keyframes voiceColumn{0%,100%{transform:translateY(20%) scaleY(calc(.22 + (var(--voice-energy) * 1.25)))}45%{transform:translateY(3%) scaleY(calc(.62 + (var(--voice-energy) * 1.8)))}}
 .np-close{align-self:flex-start;border:0;background:#ffffff1a;color:#fff;width:40px;height:40px;border-radius:50%;font-size:18px;cursor:pointer}
 .np-cover{margin-top:4px}
 .np-cover .cover-art{box-shadow:0 20px 60px #0007}
@@ -217,7 +224,11 @@ header.minimal{justify-content:flex-end}
 .np-chapter.active .np-ch-mark{background:#ec705a}
 .np-chapter b{font-weight:500;font-size:13px}
 .np-chapter small{opacity:.6;font-size:11px}
-.np-bookmarks button{display:block;width:100%;text-align:left;border:0;background:#ffffff10;color:#fff;border-radius:10px;padding:9px 12px;margin-bottom:6px;cursor:pointer;font-size:12px}
+.np-bookmark-row{display:grid;grid-template-columns:1fr 36px;gap:6px;margin-bottom:6px}
+.np-bookmark-row button{border:0;background:#ffffff10;color:#fff;border-radius:10px;padding:9px 12px;cursor:pointer;font-size:12px}
+.np-bookmark-row button:first-child{text-align:left}
+.np-bookmark-delete{display:grid;place-items:center;background:#ffffff18!important;color:#ffd3c8!important;font-size:17px!important;padding:0!important}
+.np-bookmark-delete:hover{background:#ec705a!important;color:#fff!important}
 .np-text{width:min(620px,94%);margin-top:10px;max-height:40vh}
 
 @media (max-width:560px){

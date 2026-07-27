@@ -13,9 +13,9 @@ const SLEEPS = [15, 30, 45, 60];
 
 export default function NowPlaying({
   book, status, progress, position, chapters, activeChapter, rate, remainingMins,
-  chunks, activeChunk, wordFraction, sleepMinutes, sleepRemaining, chapterMode,
+  chunks, activeChunk, wordFraction, sleepMinutes, sleepRemaining, chapterMode, voiceEnergy = 0,
   onClose, onPlay, onPause, onStop, onPrev, onNext, onSkip, onSeek, onRate, onBookmark, onSpeed,
-  onSelectChapter, onJumpBookmark, onJumpChunk, onSleep, onChapterMode,
+  onSelectChapter, onJumpBookmark, onRemoveBookmark, onJumpChunk, onSleep, onChapterMode,
 }) {
   const [showText, setShowText] = useState(false);
 
@@ -44,7 +44,10 @@ export default function NowPlaying({
   };
 
   return (
-    <div className="now-playing">
+    <div className={`now-playing ${status === 'speaking' ? 'is-speaking' : ''}`} style={{ '--voice-energy': voiceEnergy }}>
+      <div className="voice-glow" aria-hidden="true">
+        {Array.from({ length: 18 }).map((_, index) => <i key={index} />)}
+      </div>
       <button className="np-close" onClick={onClose} aria-label="Затвори">▾</button>
 
       <div className="np-cover">
@@ -129,7 +132,10 @@ export default function NowPlaying({
         <div className="np-bookmarks">
           <h3>Отметки</h3>
           {book.bookmarks.map((mark) => (
-            <button key={mark.chunkIndex} onClick={() => onJumpBookmark(mark.chunkIndex)}>🔖 {mark.label}</button>
+            <div key={mark.chunkIndex} className="np-bookmark-row">
+              <button onClick={() => onJumpBookmark(mark.chunkIndex)}>🔖 {mark.label}</button>
+              <button className="np-bookmark-delete" onClick={() => onRemoveBookmark?.(mark.chunkIndex)} aria-label="Изтрий отметката">×</button>
+            </div>
           ))}
         </div>
       )}

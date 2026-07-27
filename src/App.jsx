@@ -57,6 +57,7 @@ export default function App() {
   const [activeChapter, setActiveChapter] = useState(0);
   const [queue, setQueue] = useState([]);
   const [stats, setStats] = useState(() => getStats());
+  const [voiceEnergy, setVoiceEnergy] = useState(0);
 
   const ambient = useRef(new AmbientAudio());
   const tts = useRef(new GeminiTTS());
@@ -147,10 +148,13 @@ export default function App() {
     setActiveChunk(startChunk || 0);
 
     try {
+      await tts.current.unlockAudio().catch(() => {});
       if (music) { ambient.current.start(genre); ambient.current.setVolume(volume); }
       await tts.current.generate(sourceText, {
         apiKey: apiKey.trim(),
         voiceName: voice,
+        gender,
+        alternateVoices: true,
         rate,
         language,
         startChunk: startChunk || 0,
@@ -168,8 +172,10 @@ export default function App() {
           }
         },
         onProgress: setProgress,
+        onEnergy: setVoiceEnergy,
         onError: (error) => {
           ambient.current.stop();
+          setVoiceEnergy(0);
           setStatus('error');
           setMessage(error.message || 'Четенето спря, защото следващата част не можа да се генерира.');
         },
@@ -197,6 +203,7 @@ export default function App() {
           }
           // Край на книгата
           setProgress(100);
+          setVoiceEnergy(0);
           setStatus('finished');
           ambient.current.stop();
           if (bookId) { updatePosition(bookId, 0); setBookField(bookId, { finished: true }); refreshBooks(); }
@@ -216,6 +223,7 @@ export default function App() {
       if (!chaptersRef.current) setMessage('');
     } catch (error) {
       ambient.current.stop();
+      setVoiceEnergy(0);
       setStatus('error');
       setMessage(error.message || 'Гласът не може да бъде генериран. Провери ключа.');
     }
@@ -259,6 +267,7 @@ export default function App() {
     setPreviewing(name);
     setVoice(name);
     try {
+      await previewTts.current.unlockAudio().catch(() => {});
       await previewTts.current.generate('Здравей! Аз съм твоят разказвач. Така ще звучи текстът, който избереш.', {
         apiKey: apiKey.trim(), voiceName: name, rate: 1, language, singleChunk: true, onEnd: () => setPreviewing(''),
       });
@@ -268,8 +277,8 @@ export default function App() {
     }
   };
 
-  const pause = () => { tts.current.pause(); ambient.current.pause(); setStatus('paused'); };
-  const stop = () => { tts.current.stop(); ambient.current.stop(); setStatus('stopped'); setStats(getStats()); };
+  const pause = () => { tts.current.pause(); ambient.current.pause(); setVoiceEnergy(0); setStatus('paused'); };
+  const stop = () => { tts.current.stop(); ambient.current.stop(); setVoiceEnergy(0); setStatus('stopped'); setStats(getStats()); };
   const skip = (seconds) => tts.current.skip(seconds);
   const seek = (fraction) => tts.current.seekFraction(fraction);
   const next = () => tts.current.next();
@@ -325,7 +334,7 @@ export default function App() {
     setDownloading(true);
     setMessage('Подготвям аудио файла…');
     try {
-      downloadTts.current.prepare(text, { apiKey: apiKey.trim(), voiceName: voice, rate, language });
+      downloadTts.current.prepare(text, { apiKey: apiKey.trim(), voiceName: voice, gender, alternateVoices: true, rate, language });
       const blob = await downloadTts.current.downloadAll(() => {});
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -350,7 +359,7 @@ export default function App() {
     setCacheProgress(0);
     setMessage('Генерирам звука за офлайн слушане…');
     try {
-      downloadTts.current.prepare(text, { apiKey: apiKey.trim(), voiceName: voice, rate, language });
+      downloadTts.current.prepare(text, { apiKey: apiKey.trim(), voiceName: voice, gender, alternateVoices: true, rate, language });
       await downloadTts.current.cacheAll(setCacheProgress);
       if (currentBookId) { setBookField(currentBookId, { cachedOffline: true }); refreshBooks(); }
       setMessage('Книгата е готова за офлайн слушане. ✅');
@@ -556,6 +565,7 @@ export default function App() {
           sleepMinutes={sleepMinutes}
           sleepRemaining={sleepRemaining}
           chapterMode={chapterMode}
+          voiceEnergy={voiceEnergy}
           onClose={() => setPlayerOpen(false)}
           onPlay={() => speak(false)}
           onPause={pause}
@@ -569,6 +579,7 @@ export default function App() {
           onSpeed={changeSpeed}
           onSelectChapter={selectChapter}
           onJumpBookmark={jumpBookmarkHere}
+          onRemoveBookmark={(chunkIndex) => deleteBookmark(currentBook.id, chunkIndex)}
           onJumpChunk={(i) => tts.current.jumpToChunk(i)}
           onSleep={setSleepMinutes}
           onChapterMode={setChapterMode}
