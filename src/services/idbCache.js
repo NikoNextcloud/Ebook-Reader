@@ -45,8 +45,18 @@ export const idbGet = async (key) => {
 export const idbSet = async (key, blob) => {
   try {
     await tx('readwrite', (store) => store.put(blob, key));
+    return true;
   } catch {
     /* квотата за диск може да е изчерпана */
+    return false;
+  }
+};
+
+export const idbDelete = async (key) => {
+  try {
+    await tx('readwrite', (store) => store.delete(key));
+  } catch {
+    /* игнорирай недостъпен кеш */
   }
 };
 

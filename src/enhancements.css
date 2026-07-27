@@ -445,3 +445,266 @@ header.minimal{justify-content:flex-end}
 :root[data-theme="dark"] .stats-bar .stat b{color:#e7ece9}
 :root[data-theme="dark"] .book-actions button{background:#1c2b28;border-color:#2c3a36;color:#9aa9a4}
 :root[data-theme="dark"] .nav-home{border-color:#2c3a36}
+
+/* Voxora brand mark in the persistent app header. */
+header.minimal{justify-content:space-between;gap:16px}
+.app-logo{
+  display:block;
+  width:72px;
+  height:64px;
+  object-fit:contain;
+  flex:0 0 auto;
+}
+@media(max-width:520px){
+  header.minimal{gap:8px}
+  .app-logo{width:56px;height:52px}
+  .header-right{gap:7px;min-width:0}
+}
+
+/* Immersive audiobook controls inspired by dedicated mobile listening apps. */
+.cover-art:not(.gen){object-fit:contain;background:#dfe7e3}
+.now-playing,.audiobook-player{
+  background:linear-gradient(180deg,#31574f 0%,#0b272b 38%,#061920 100%);
+  color:#f7f8f5;
+  gap:12px;
+}
+.np-cover,.ab-cover{flex:0 0 auto}
+.np-cover .cover-art:not(.gen){
+  width:auto;
+  height:auto;
+  max-width:min(72vw,360px);
+  max-height:min(40vh,420px);
+  aspect-ratio:auto;
+  object-fit:contain;
+  background:transparent;
+}
+.ab-cover{
+  width:auto;
+  height:auto;
+  max-width:min(72vw,360px);
+  max-height:min(40vh,420px);
+  aspect-ratio:auto;
+  object-fit:contain;
+  background:transparent;
+}
+.ab-cover-empty{
+  width:min(72vw,320px);
+  height:min(40vh,420px);
+  aspect-ratio:2/3;
+}
+.np-title h2,.ab-title h2{
+  font-family:'DM Sans',sans-serif;
+  font-style:normal;
+  font-weight:700;
+  letter-spacing:0;
+}
+.np-current-chapter,.ab-current-chapter{
+  width:min(620px,92%);
+  min-height:34px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  color:#f8faf7;
+  font-size:14px;
+}
+.np-current-chapter span,.ab-current-chapter span{font-size:21px;opacity:.9}
+.np-current-chapter b,.ab-current-chapter b{font-weight:700;overflow-wrap:anywhere;text-align:center}
+.np-scrubber{height:4px;background:#ffffff38;overflow:visible}
+.np-scrubber.seekable{height:4px}
+.np-scrubber i{position:relative;border-radius:4px;background:#f5a623}
+.np-scrubber i:after{
+  content:'';
+  position:absolute;
+  top:50%;
+  right:-5px;
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#f5a623;
+  transform:translateY(-50%);
+  box-shadow:0 0 0 2px #0b272b;
+}
+.np-time,.ab-progress div{font-variant-numeric:tabular-nums}
+.np-time span:nth-child(2){text-align:center}
+.np-transport,.ab-transport{
+  width:min(480px,100%);
+  display:grid;
+  grid-template-columns:repeat(5,minmax(48px,1fr));
+  align-items:center;
+  justify-items:center;
+  gap:4px;
+}
+.np-transport button,.ab-transport button{
+  width:52px;
+  height:52px;
+  display:grid;
+  place-items:center;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  color:#f7f8f5;
+  font-size:22px;
+}
+.np-transport .np-main,.ab-transport .ab-main{
+  width:72px;
+  height:72px;
+  background:#fffdf7;
+  color:#0c2630;
+  border:3px solid #fffdf7;
+  box-shadow:0 4px 0 #f5a623,0 8px 24px #0005;
+  font-size:25px;
+}
+.np-skip,.ab-skip{position:relative!important}
+.np-skip span,.ab-skip span{font-size:31px;line-height:1}
+.np-skip small,.ab-skip small{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding-top:3px;
+  font-size:10px;
+  font-weight:700;
+}
+.np-quick-tools,.ab-quick-tools{
+  width:min(520px,100%);
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:start;
+  gap:4px;
+}
+.np-quick-tools button,.ab-quick-tools button,.ab-quick-tools a{
+  min-width:0;
+  min-height:66px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  padding:4px 2px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#dfe9e8;
+  text-decoration:none;
+}
+.np-quick-tools strong,.ab-quick-tools strong{
+  min-height:27px;
+  display:grid;
+  place-items:center;
+  font-size:20px;
+  font-weight:600;
+  color:#f7f8f5;
+}
+.np-quick-tools span,.ab-quick-tools span{
+  max-width:100%;
+  font-size:10px;
+  line-height:1.2;
+  color:#b7c7c7;
+  overflow-wrap:anywhere;
+  text-align:center;
+}
+.np-quick-tools .on strong,.np-quick-tools .on span,
+.ab-quick-tools .on strong,.ab-quick-tools .on span{color:#f5a623}
+.np-popover,.ab-popover{
+  width:min(520px,100%);
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:6px;
+  padding:8px;
+  border:1px solid #ffffff24;
+  border-radius:8px;
+  background:#071b20e8;
+  box-shadow:0 12px 30px #0004;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.np-popover button,.ab-popover button{
+  min-height:36px;
+  border:1px solid #ffffff2b;
+  border-radius:18px;
+  padding:0 12px;
+  background:transparent;
+  color:#fff;
+}
+.np-popover button.on,.ab-popover button.on{border-color:#f5a623;background:#f5a623;color:#10272a}
+.np-stop{
+  min-height:32px;
+  border:0;
+  background:transparent;
+  color:#b8c6c5;
+  font-size:11px;
+}
+.ab-progress{width:min(620px,92%)}
+.ab-progress input{
+  appearance:none;
+  width:100%;
+  height:4px;
+  margin:0;
+  border-radius:4px;
+  background:linear-gradient(to right,#f5a623 0 var(--ab-progress),#ffffff38 var(--ab-progress) 100%);
+}
+.ab-progress input::-webkit-slider-thumb{
+  appearance:none;
+  width:12px;
+  height:12px;
+  border:0;
+  border-radius:50%;
+  background:#f5a623;
+  box-shadow:0 0 0 2px #0b272b;
+}
+.ab-progress input::-moz-range-thumb{
+  width:12px;
+  height:12px;
+  border:0;
+  border-radius:50%;
+  background:#f5a623;
+}
+.ab-progress div{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:6px}
+.ab-progress div span:nth-child(2){text-align:center}
+.ab-progress div span:last-child{text-align:right}
+.ab-favorite{background:#0a2024a8;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+
+@media(max-width:560px){
+  .now-playing,.audiobook-player{
+    padding:calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 22px);
+    gap:9px;
+  }
+  .np-cover{margin-top:48px}
+  .np-cover .cover-art:not(.gen){
+    max-width:76vw;
+    max-height:35svh;
+  }
+  .cover-art.lg.gen{max-width:70vw;max-height:35svh}
+  .ab-cover{
+    max-width:76vw;
+    max-height:35svh;
+    margin-top:48px;
+  }
+  .ab-cover-empty{width:68vw;height:min(35svh,330px)}
+  .np-title h2,.ab-title h2{font-size:19px;line-height:1.2}
+  .np-title p,.ab-title p{font-size:12px}
+  .np-rating{min-height:24px}
+  .np-rating button{font-size:18px;min-width:32px;min-height:24px;padding:0}
+  .np-current-chapter,.ab-current-chapter{width:100%;font-size:13px}
+  .np-scrubber,.np-time,.ab-progress{width:100%}
+  .np-time,.ab-progress div{font-size:10px}
+  .np-transport,.ab-transport{width:100%;grid-template-columns:repeat(5,minmax(44px,1fr))}
+  .np-transport button,.ab-transport button{width:48px;height:48px;min-width:48px}
+  .np-transport .np-main,.ab-transport .ab-main{width:66px;height:66px;min-width:66px}
+  .np-quick-tools,.ab-quick-tools{width:100%}
+  .np-popover,.ab-popover{width:100%}
+  .np-text{max-height:46svh}
+  .np-chapters,.np-bookmarks,.ab-bookmarks{width:100%}
+}
+
+@media(max-width:370px){
+  .now-playing,.audiobook-player{padding-left:10px;padding-right:10px}
+  .np-cover .cover-art:not(.gen),.ab-cover{max-height:31svh}
+  .np-transport button,.ab-transport button{width:44px;height:44px;min-width:44px}
+  .np-transport .np-main,.ab-transport .ab-main{width:60px;height:60px;min-width:60px}
+  .np-quick-tools strong,.ab-quick-tools strong{font-size:18px}
+}

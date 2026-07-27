@@ -63,7 +63,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setCatalog(null);
     setSearch('');
     setShowFavorites(false);
-    setStatus(nextSource === 'mega' ? 'Зареждам Mega библиотеката…' : 'Зареждам 4eti.me…');
+    setStatus(nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
     try {
       if (nextSource === 'mega') {
         const loaded = await loadMegaCatalog(MEGA_LIBRARY_URL);
@@ -108,7 +108,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   const importRemoteItem = async (item, context = {}) => {
     if (item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES) {
       window.open(item.url, '_blank', 'noopener,noreferrer');
-      setStatus('Файлът е твърде голям за паметта на телефона и е отворен в Mega.');
+      setStatus('Файлът е твърде голям за паметта на телефона и е отворен във външното хранилище.');
       return;
     }
     if (
@@ -190,17 +190,17 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
         <div className="source-options">
           <button onClick={() => chooseSource('manual')}>
             <span>Aa</span>
-            <b>1.1 Моят текст</b>
+            <b>Моят текст</b>
             <small>Текст или файл</small>
           </button>
           <button onClick={() => chooseSource('mega')}>
             <span>▶</span>
-            <b>1.2 Mega</b>
+            <b>Storytel</b>
             <small>Аудиокниги</small>
           </button>
           <button onClick={() => chooseSource('4eti')}>
-            <span>4</span>
-            <b>1.3 4eti.me</b>
+            <span>▤</span>
+            <b>Библиотека</b>
             <small>Електронни книги</small>
           </button>
         </div>
@@ -213,7 +213,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
       <div className="source-library-head">
         <button onClick={backToSources} aria-label="Назад към източниците">←</button>
         <div>
-          <span className="eyebrow">02 · {source === 'mega' ? 'MEGA' : '4ETI.ME'}</span>
+          <span className="eyebrow">02 · {source === 'mega' ? 'STORYTEL' : 'БИБЛИОТЕКА'}</span>
           <h2>Избери категория и книга</h2>
         </div>
       </div>
@@ -271,7 +271,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
                     formatRemoteSize(item.size),
                   ].filter(Boolean).join(' · ')}</small>
                 </span>
-                <i>{item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES ? 'Mega' : '›'}</i>
+                <i>{item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES ? 'Отвори' : '›'}</i>
               </button>
               <button
                 className={`source-book-favorite ${favorite ? 'on' : ''}`}

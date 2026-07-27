@@ -18,6 +18,8 @@ export default function NowPlaying({
   onSelectChapter, onJumpBookmark, onRemoveBookmark, onJumpChunk, onSleep, onChapterMode,
 }) {
   const [showText, setShowText] = useState(false);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showSleepMenu, setShowSleepMenu] = useState(false);
 
   const renderChunk = (chunk, index) => {
     if (index !== activeChunk) {
@@ -37,6 +39,12 @@ export default function NowPlaying({
 
   const chunkPct = position?.chunkDuration ? (position.chunkTime / position.chunkDuration) * 100 : 0;
   const canSeek = status === 'speaking' || status === 'paused';
+  const chapterTitle = chapters?.[activeChapter]?.title || `Част ${(position?.chunk || 0) + 1}`;
+  const sleepLabel = chapterMode
+    ? 'Глава'
+    : sleepMinutes > 0 && sleepRemaining != null
+      ? `${Math.ceil(sleepRemaining / 60)} мин.`
+      : 'Таймер';
   const seek = (e) => {
     if (!canSeek) return;
     const r = e.currentTarget.getBoundingClientRect();
@@ -64,6 +72,11 @@ export default function NowPlaying({
         ))}
       </div>
 
+      <div className="np-current-chapter">
+        <span aria-hidden="true">☷</span>
+        <b>{chapterTitle}</b>
+      </div>
+
       <div className={`np-scrubber ${canSeek ? 'seekable' : ''}`} onClick={seek} role="slider" aria-valuenow={Math.round(chunkPct)}>
         <i style={{ width: `${chunkPct}%` }} />
       </div>
@@ -82,38 +95,56 @@ export default function NowPlaying({
 
       <div className="np-transport">
         <button onClick={onPrev} aria-label="Предишна част">⏮</button>
-        <button onClick={() => onSkip(-15)} aria-label="Назад 15с">«15</button>
+        <button className="np-skip" onClick={() => onSkip(-30)} aria-label="Назад 30 секунди"><span>↶</span><small>30</small></button>
         {status === 'loading'
           ? <button className="np-main is-loading" disabled aria-label="Гласът се подготвя">…</button>
           : status === 'speaking'
             ? <button className="np-main" onClick={onPause} aria-label="Пауза">Ⅱ</button>
             : <button className="np-main" onClick={onPlay} aria-label="Пусни">▶</button>}
-        <button onClick={() => onSkip(15)} aria-label="Напред 15с">15»</button>
+        <button className="np-skip" onClick={() => onSkip(30)} aria-label="Напред 30 секунди"><span>↷</span><small>30</small></button>
         <button onClick={onNext} aria-label="Следваща част">⏭</button>
       </div>
 
-      <div className="np-tools">
-        <div className="np-speeds">
+      <div className="np-quick-tools">
+        <button className={showSpeedMenu ? 'on' : ''} onClick={() => { setShowSpeedMenu((value) => !value); setShowSleepMenu(false); }}>
+          <strong>{rate}×</strong>
+          <span>Скорост</span>
+        </button>
+        <button className={showText ? 'on' : ''} onClick={() => setShowText((value) => !value)}>
+          <strong>Aa</strong>
+          <span>Текст</span>
+        </button>
+        <button className={showSleepMenu || sleepMinutes || chapterMode ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
+          <strong>◷</strong>
+          <span>{sleepLabel}</span>
+        </button>
+        <button onClick={onBookmark}>
+          <strong>＋</strong>
+          <span>Отметка</span>
+        </button>
+      </div>
+
+      {showSpeedMenu && (
+        <div className="np-popover np-speeds" aria-label="Скорост">
           {SPEEDS.map((s) => (
-            <button key={s} className={Math.abs(rate - s) < 0.01 ? 'on' : ''} onClick={() => onSpeed(s)}>{s}×</button>
+            <button key={s} className={Math.abs(rate - s) < 0.01 ? 'on' : ''} onClick={() => { onSpeed(s); setShowSpeedMenu(false); }}>{s}×</button>
           ))}
         </div>
-        <div className="np-tool-btns">
-          <button onClick={onBookmark}>🔖 Отметка</button>
-          <button className={showText ? 'on' : ''} onClick={() => setShowText((v) => !v)}>Aa Следи текста</button>
-          <button onClick={onStop}>■ Стоп</button>
-        </div>
-        <div className="np-sleep">
-          <span>Сън{sleepMinutes > 0 && sleepRemaining != null ? ` · ${Math.ceil(sleepRemaining / 60)} мин.` : ''}:</span>
-          <button className={!sleepMinutes && !chapterMode ? 'on' : ''} onClick={() => { onChapterMode(false); onSleep(0); }}>Изкл.</button>
+      )}
+
+      {showSleepMenu && (
+        <div className="np-popover np-sleep">
+          <button className={!sleepMinutes && !chapterMode ? 'on' : ''} onClick={() => { onChapterMode(false); onSleep(0); setShowSleepMenu(false); }}>Изкл.</button>
           {SLEEPS.map((m) => (
-            <button key={m} className={sleepMinutes === m && !chapterMode ? 'on' : ''} onClick={() => { onChapterMode(false); onSleep(m); }}>{m}</button>
+            <button key={m} className={sleepMinutes === m && !chapterMode ? 'on' : ''} onClick={() => { onChapterMode(false); onSleep(m); setShowSleepMenu(false); }}>{m} мин.</button>
           ))}
           {chapters?.length > 1 && (
-            <button className={chapterMode ? 'on' : ''} onClick={() => { onSleep(0); onChapterMode(!chapterMode); }}>Глава</button>
+            <button className={chapterMode ? 'on' : ''} onClick={() => { onSleep(0); onChapterMode(!chapterMode); setShowSleepMenu(false); }}>След глава</button>
           )}
         </div>
-      </div>
+      )}
+
+      <button className="np-stop" onClick={onStop}>■ Спри четенето</button>
 
       {showText && chunks?.length > 0 && (
         <div className="np-text reading-view" onClick={(e) => e.stopPropagation()}>

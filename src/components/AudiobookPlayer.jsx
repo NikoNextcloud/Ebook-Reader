@@ -35,6 +35,12 @@ export default function AudiobookPlayer({
   const [message, setMessage] = useState('');
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [sleepRemaining, setSleepRemaining] = useState(0);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showSleepMenu, setShowSleepMenu] = useState(false);
+
+  useEffect(() => {
+    if (book.cacheNotice) setMessage(book.cacheNotice);
+  }, [book.cacheNotice]);
 
   useEffect(() => {
     const tick = () => {
@@ -128,6 +134,14 @@ export default function AudiobookPlayer({
     saveProgress();
   };
 
+  const jumpTo = (time) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = Math.max(0, Math.min(duration || audio.duration || 0, time));
+    timeRef.current = audio.currentTime;
+    setCurrentTime(audio.currentTime);
+  };
+
   const close = () => {
     saveProgress();
     audioRef.current?.pause();
@@ -143,7 +157,7 @@ export default function AudiobookPlayer({
       <div className="voice-glow" aria-hidden="true">
         {Array.from({ length: 18 }).map((_, index) => <i key={index} />)}
       </div>
-      <button className="ab-close" onClick={close} aria-label="Затвори">×</button>
+      <button className="ab-close" onClick={close} aria-label="Затвори">⌄</button>
       <button
         className={`ab-favorite ${book.favorite ? 'on' : ''}`}
         onClick={onToggleFavorite}
@@ -153,7 +167,7 @@ export default function AudiobookPlayer({
       </button>
 
       {book.coverUrl
-        ? <img className="ab-cover" src={book.coverUrl} alt="" />
+        ? <img className="ab-cover" src={book.coverUrl} alt={`Корица на ${book.title}`} />
         : <div className="ab-cover ab-cover-empty"><span>V</span></div>}
 
       <div className="ab-title">
@@ -195,6 +209,11 @@ export default function AudiobookPlayer({
         }}
       />
 
+      <div className="ab-current-chapter">
+        <span aria-hidden="true">☷</span>
+        <b>{book.chapterTitle || 'Глава 1'}</b>
+      </div>
+
       <div className="ab-progress">
         <input
           type="range"
@@ -203,38 +222,66 @@ export default function AudiobookPlayer({
           step="1"
           value={Math.min(currentTime, duration || 0)}
           onChange={seek}
+          style={{ '--ab-progress': `${duration ? (currentTime / duration) * 100 : 0}%` }}
           aria-label="Позиция в аудиокнигата"
         />
-        <div><span>{fmt(currentTime)}</span><span>{fmt(duration)}</span></div>
+        <div>
+          <span>{fmt(currentTime)}</span>
+          <span>{fmt(Math.max(0, duration - currentTime))} остават</span>
+          <span>-{fmt(Math.max(0, duration - currentTime))}</span>
+        </div>
       </div>
 
       {message && <p className="ab-message" role="status">{message}</p>}
 
       <div className="ab-transport">
-        <button onClick={() => skip(-30)} aria-label="Назад 30 секунди">«30</button>
+        <button className="ab-track" onClick={() => jumpTo(0)} aria-label="В началото">⏮</button>
+        <button className="ab-skip" onClick={() => skip(-30)} aria-label="Назад 30 секунди"><span>↶</span><small>30</small></button>
         <button className="ab-main" onClick={toggle} aria-label={playing ? 'Пауза' : 'Пусни'}>{playing ? 'Ⅱ' : '▶'}</button>
-        <button onClick={() => skip(30)} aria-label="Напред 30 секунди">30»</button>
+        <button className="ab-skip" onClick={() => skip(30)} aria-label="Напред 30 секунди"><span>↷</span><small>30</small></button>
+        <button className="ab-track" onClick={() => jumpTo(Math.max(0, duration - 1))} aria-label="В края">⏭</button>
       </div>
 
-      <div className="ab-speeds" aria-label="Скорост">
-        {SPEEDS.map((speed) => (
-          <button key={speed} className={rate === speed ? 'on' : ''} onClick={() => changeRate(speed)}>{speed}×</button>
-        ))}
+      <div className="ab-quick-tools">
+        <button className={showSpeedMenu ? 'on' : ''} onClick={() => { setShowSpeedMenu((value) => !value); setShowSleepMenu(false); }}>
+          <strong>{rate}×</strong>
+          <span>Скорост</span>
+        </button>
+        <a href={book.audioUrl} download={book.fileName}>
+          <strong>↓</strong>
+          <span>Офлайн</span>
+        </a>
+        <button className={showSleepMenu || sleepMinutes ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
+          <strong>◷</strong>
+          <span>{sleepLabel || 'Таймер'}</span>
+        </button>
+        <button onClick={() => onBookmark?.(currentTime)}>
+          <strong>＋</strong>
+          <span>Отметка</span>
+        </button>
       </div>
 
-      <div className="ab-tools">
-        <button onClick={() => onBookmark?.(currentTime)}>◆ Отметка</button>
-        <span>Таймер{sleepLabel ? ` · ${sleepLabel}` : ''}</span>
-        {[0, 15, 30, 45, 60].map((minutes) => (
-          <button
-            key={minutes}
-            className={sleepMinutes === minutes ? 'on' : ''}
-            onClick={() => setSleepMinutes(minutes)}
-          >
-            {minutes || 'Изкл.'}
-          </button>
-        ))}
-      </div>
+      {showSpeedMenu && (
+        <div className="ab-popover ab-speeds" aria-label="Скорост">
+          {SPEEDS.map((speed) => (
+            <button key={speed} className={rate === speed ? 'on' : ''} onClick={() => { changeRate(speed); setShowSpeedMenu(false); }}>{speed}×</button>
+          ))}
+        </div>
+      )}
+
+      {showSleepMenu && (
+        <div className="ab-popover ab-tools">
+          {[0, 15, 30, 45, 60].map((minutes) => (
+            <button
+              key={minutes}
+              className={sleepMinutes === minutes ? 'on' : ''}
+              onClick={() => { setSleepMinutes(minutes); setShowSleepMenu(false); }}
+            >
+              {minutes ? `${minutes} мин.` : 'Изкл.'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {book.audioBookmarks?.length > 0 && (
         <div className="ab-bookmarks">
@@ -248,7 +295,6 @@ export default function AudiobookPlayer({
         </div>
       )}
 
-      <a className="ab-download" href={book.audioUrl} download={book.fileName}>↓ Запази аудиокнигата</a>
     </div>
   );
 }

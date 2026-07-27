@@ -10,7 +10,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'favicon.jpg', 'voxora-logo.png'],
       manifest: {
         name: 'Voxora AI Reader',
         short_name: 'Voxora',
@@ -19,7 +19,10 @@ export default defineConfig({
         background_color: '#f4f2e9',
         display: 'standalone',
         start_url: '/',
-        icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
+        icons: [
+          { src: '/favicon.jpg', sizes: '435x423', type: 'image/jpeg', purpose: 'any' },
+          { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+        ],
       },
     }),
   ],

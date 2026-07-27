@@ -2,6 +2,9 @@
 const KEY = 'voxora_settings';
 
 const defaults = {
+  ttsProvider: 'gemini',
+  elevenPrimaryVoice: '',
+  elevenSecondaryVoice: '',
   voice: 'Kore',
   gender: 'female',
   rate: 1,

@@ -35,7 +35,7 @@ export default function Library({ books, activeId, onOpen, onResume, onRemove, o
                   <b>{book.title}</b>
                   <small>
                     {book.mediaType === 'audio'
-                      ? `аудиокнига${book.progressPercent ? ` · ${book.progressPercent}%` : ''}`
+                      ? `аудиокнига${book.progressPercent ? ` · ${book.progressPercent}%` : ''}${book.audioCached ? ' · в паметта' : ''}`
                       : book.words ? `${book.words.toLocaleString('bg-BG')} думи` : 'текст'}
                     {book.mediaType !== 'audio' && book.chunkIndex > 0 ? ` · спряно на част ${book.chunkIndex + 1}` : ''}
                   </small>

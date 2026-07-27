@@ -1,5 +1,12 @@
 # Voxora AI Reader
 
+## ElevenLabs Multilingual v2
+
+The ElevenLabs integration keeps its API key on the Vercel server. Add a private
+environment variable named `ELEVENLABS_API_KEY` in Vercel Project Settings, then
+redeploy the project. Never put the real key in `.env.example`, the React source,
+GitHub, or a browser-side environment variable.
+
 Responsive React PWA за превръщане на потребителски текст в аудио преживяване.
 
 ## Стартиране
