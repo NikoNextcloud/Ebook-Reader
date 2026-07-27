@@ -5,6 +5,7 @@ const defaults = {
   ttsProvider: 'gemini',
   elevenPrimaryVoice: '',
   elevenSecondaryVoice: '',
+  alternateVoices: true,
   voice: 'Kore',
   gender: 'female',
   rate: 1,

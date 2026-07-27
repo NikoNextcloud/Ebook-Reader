@@ -11,12 +11,57 @@ const read = () => {
   }
 };
 
+// Последната грешка при запис (напр. препълнена памет) — интерфейсът я показва.
+let lastWriteError = '';
+export const getLibraryWriteError = () => lastWriteError;
+export const clearLibraryWriteError = () => { lastWriteError = ''; };
+
+const persist = (list) => localStorage.setItem(KEY, JSON.stringify(list));
+
+// Записва библиотеката. Ако паметта на браузъра е препълнена, освобождава
+// място, вместо да се проваля мълчаливо и да губи позицията на слушане.
 const write = (list) => {
+  const capped = list.slice(0, 40);
   try {
-    localStorage.setItem(KEY, JSON.stringify(list.slice(0, 40)));
+    persist(capped);
+    lastWriteError = '';
+    return true;
   } catch {
-    /* localStorage може да е пълен или недостъпен */
+    /* пробваме да освободим място по-долу */
   }
+
+  // 1. Махаме текста на най-старите книги (той е най-обемен), но пазим
+  //    заглавие, позиция и отметки, за да не изчезне книгата от рафта.
+  const trimmed = capped.map((book) => ({ ...book }));
+  for (let i = trimmed.length - 1; i > 0; i -= 1) {
+    if (!trimmed[i].text && !trimmed[i].cover) continue;
+    delete trimmed[i].cover;
+    if (trimmed[i].text) {
+      trimmed[i].textEvicted = true;
+      trimmed[i].text = '';
+    }
+    try {
+      persist(trimmed);
+      lastWriteError = 'Паметта на браузъра беше пълна. Текстът на най-старите книги е освободен, за да се запази позицията ти.';
+      return true;
+    } catch {
+      /* продължаваме да освобождаваме */
+    }
+  }
+
+  // 2. Като последна мярка пазим само най-новите книги.
+  for (let keep = Math.min(10, trimmed.length); keep >= 1; keep -= 1) {
+    try {
+      persist(trimmed.slice(0, keep));
+      lastWriteError = 'Паметта на браузъра е пълна. Запазени са само последните книги — направи експорт на библиотеката.';
+      return true;
+    } catch {
+      /* продължаваме */
+    }
+  }
+
+  lastWriteError = 'Паметта на браузъра е пълна и промените не могат да се запазят. Изтрий книги или направи експорт.';
+  return false;
 };
 
 export const loadBooks = () => read().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));

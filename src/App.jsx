@@ -27,6 +27,7 @@ import {
   loadBooks, saveBook, saveAudioBook, updatePosition, updateAudioPosition,
   updateTitle, removeBook, makeTitle, setBookField, addBookmark, removeBookmark,
   addAudioBookmark, removeAudioBookmark, exportLibrary, importLibrary,
+  getLibraryWriteError, clearLibraryWriteError,
 } from './services/library';
 import { downloadRemoteItem, openRemoteCatalog } from './services/remoteBooks';
 import { setRemoteFavorite } from './services/remoteFavorites';
@@ -38,7 +39,7 @@ import {
   loadCachedAudioBook,
   removeCachedAudioBook,
 } from './services/audiobookCache';
-import { addListening, getStats } from './services/stats';
+import { addListening, flushListening, getStats } from './services/stats';
 
 const sample = 'Понякога най-добрите истории не чакат да бъдат написани. Те вече са тук — в статиите, които пазим, в бележките, към които се връщаме, и в думите, за които рядко намираме време. Voxora превръща всеки текст в лично аудио изживяване.';
 const THEMES = ['auto', 'light', 'dark'];
@@ -52,6 +53,7 @@ export default function App() {
   const [ttsProvider, setTtsProvider] = useState(initial.ttsProvider);
   const [elevenPrimaryVoice, setElevenPrimaryVoice] = useState(initial.elevenPrimaryVoice);
   const [elevenSecondaryVoice, setElevenSecondaryVoice] = useState(initial.elevenSecondaryVoice);
+  const [alternateVoices, setAlternateVoices] = useState(initial.alternateVoices !== false);
   const [voice, setVoice] = useState(initial.voice);
   const [gender, setGender] = useState(initial.gender);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
@@ -108,7 +110,15 @@ export default function App() {
   const mins = Math.max(1, Math.ceil(words / (165 * rate)));
   const remainingMins = Math.max(0, Math.round(mins * (1 - progress / 100)));
   const heavy = chunks.length > 12;
-  const refreshBooks = useCallback(() => setBooks(loadBooks()), []);
+  const refreshBooks = useCallback(() => {
+    setBooks(loadBooks());
+    // Ако паметта на браузъра е препълнена, казваме го вместо да губим позиция мълчаливо.
+    const storageError = getLibraryWriteError();
+    if (storageError) {
+      setMessage(storageError);
+      clearLibraryWriteError();
+    }
+  }, []);
 
   const currentBook = useMemo(
     () => books.find((b) => b.id === currentBookId)
@@ -140,6 +150,7 @@ export default function App() {
     ttsProvider,
     elevenPrimaryVoice,
     elevenSecondaryVoice,
+    alternateVoices,
     voice,
     gender,
     rate,
@@ -151,6 +162,7 @@ export default function App() {
     ttsProvider,
     elevenPrimaryVoice,
     elevenSecondaryVoice,
+    alternateVoices,
     voice,
     gender,
     rate,
@@ -180,7 +192,7 @@ export default function App() {
   useEffect(() => {
     if (status !== 'speaking') return undefined;
     const id = setInterval(() => addListening(1), 1000);
-    return () => { clearInterval(id); setStats(getStats()); };
+    return () => { clearInterval(id); flushListening(); setStats(getStats()); };
   }, [status]);
 
   const setText = (value) => {
@@ -217,7 +229,7 @@ export default function App() {
         primaryVoiceId: elevenPrimaryVoice,
         secondaryVoiceId: elevenSecondaryVoice,
         gender,
-        alternateVoices: true,
+        alternateVoices,
         rate,
         language,
         startChunk: startChunk || 0,
@@ -359,8 +371,8 @@ export default function App() {
     }
   };
 
-  const pause = () => { tts.current.pause(); ambient.current.pause(); setVoiceEnergy(0); setStatus('paused'); };
-  const stop = () => { tts.current.stop(); ambient.current.stop(); setVoiceEnergy(0); setStatus('stopped'); setStats(getStats()); };
+  const pause = () => { tts.current.pause(); ambient.current.pause(); setVoiceEnergy(0); setStatus('paused'); flushListening(); setStats(getStats()); };
+  const stop = () => { tts.current.stop(); ambient.current.stop(); setVoiceEnergy(0); setStatus('stopped'); flushListening(); setStats(getStats()); };
   const skip = (seconds) => tts.current.skip(seconds);
   const seek = (fraction) => tts.current.seekFraction(fraction);
   const next = () => tts.current.next();
@@ -611,7 +623,7 @@ export default function App() {
         primaryVoiceId: elevenPrimaryVoice,
         secondaryVoiceId: elevenSecondaryVoice,
         gender,
-        alternateVoices: true,
+        alternateVoices,
         rate,
         language,
       });
@@ -646,7 +658,7 @@ export default function App() {
         primaryVoiceId: elevenPrimaryVoice,
         secondaryVoiceId: elevenSecondaryVoice,
         gender,
-        alternateVoices: true,
+        alternateVoices,
         rate,
         language,
       });
@@ -809,6 +821,13 @@ export default function App() {
                   previewing={previewing}
                 />
               )}
+              <label className="alt-voices">
+                <input type="checkbox" checked={alternateVoices} onChange={(event) => setAlternateVoices(event.target.checked)} />
+                <span>
+                  <b>Редувай мъжки и женски глас</b>
+                  <small>{alternateVoices ? 'Всяка следваща част се чете от другия глас.' : 'Цялата книга се чете от един разказвач.'}</small>
+                </span>
+              </label>
               {text.trim() && <p className="lang-badge">Разпознат език: <b>{langLabel(language)}</b></p>}
               <SpeedControl value={rate} onChange={setRate} />
               <MusicSelector enabled={music} setEnabled={setMusic} genre={genre} setGenre={setGenre} volume={volume} setVolume={setVolume} />

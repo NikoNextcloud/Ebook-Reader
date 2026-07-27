@@ -1,5 +1,5 @@
 import { idbGet, idbSet } from './idbCache';
-import { splitTextForSpeech } from './geminiTtsService';
+import { buildChunksForPlayback, splitTextForSpeech } from './geminiTtsService';
 
 const audioCache = new Map();
 const SAMPLE_RATE = 8000;
@@ -63,6 +63,7 @@ export class ElevenLabsTTS {
     this.unlocked = false;
     this.cancelled = false;
     this.chunks = [];
+    this.origin = [];
     this.currentChunk = 0;
     this.options = null;
     this.inflight = new Map();
@@ -98,7 +99,7 @@ export class ElevenLabsTTS {
   }
 
   async request(index) {
-    const voiceId = voiceFor(this.options, index);
+    const voiceId = voiceFor(this.options, this.originOf(index));
     const response = await fetch('/api/eleven-tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
@@ -118,7 +119,7 @@ export class ElevenLabsTTS {
 
   blobForChunk(index) {
     if (index < 0 || index >= this.chunks.length) return Promise.resolve(null);
-    const voiceId = voiceFor(this.options, index);
+    const voiceId = voiceFor(this.options, this.originOf(index));
     const key = `eleven-v2|${voiceId}|${hash(this.chunks[index])}`;
     if (audioCache.has(key)) return Promise.resolve(audioCache.get(key));
     if (this.inflight.has(key)) return this.inflight.get(key);
@@ -144,23 +145,39 @@ export class ElevenLabsTTS {
     this.options = options;
     this.cancelled = false;
     this.chunks = options.singleChunk ? [(text || '').trim()] : splitTextForSpeech(text);
+    this.origin = this.chunks.map((_, index) => index);
+  }
+
+  // Оригиналният (стабилен) индекс на парче — по него се пази позицията в книгата.
+  originOf(index) {
+    return this.origin?.[index] ?? index;
+  }
+
+  internalOf(originIndex) {
+    const found = this.origin?.indexOf(originIndex);
+    return found === undefined || found < 0 ? originIndex : found;
   }
 
   async generate(text, options) {
     this.stop({ keepUnlocked: true });
-    this.prepare(text, options);
+    this.options = options;
+    this.cancelled = false;
+
+    const built = buildChunksForPlayback(text, options);
+    this.chunks = built.chunks;
+    this.origin = built.origin;
+
     if (!this.chunks.length) {
       options.onEnd?.();
       return;
     }
-    const start = Math.min(Math.max(0, options.startChunk || 0), this.chunks.length - 1);
-    await this.playFrom(start);
+    await this.playFrom(built.start);
   }
 
   async playFrom(index) {
     if (this.cancelled || !this.options) return;
-    this.currentChunk = index;
-    this.options.onChunk?.(index, this.chunks.length);
+    this.currentChunk = this.originOf(index);
+    this.options.onChunk?.(this.currentChunk, this.chunks.length);
     const blob = await this.blobForChunk(index);
     if (this.cancelled || !blob) return;
     this.blobForChunk(index + 1).catch(() => {});
@@ -205,7 +222,7 @@ export class ElevenLabsTTS {
       const fraction = duration ? audio.currentTime / duration : 0;
       this.options?.onProgress?.(Math.min(99.5, ((index + fraction) / total) * 100));
       this.options?.onPosition?.({
-        chunk: index,
+        chunk: this.originOf(index),
         total,
         chunkTime: audio.currentTime || 0,
         chunkDuration: duration,
@@ -254,8 +271,11 @@ export class ElevenLabsTTS {
     this.audio.currentTime = Math.max(0, Math.min(1, fraction)) * this.audio.duration;
   }
 
-  jumpToChunk(index) {
-    if (!this.options || index < 0 || index >= this.chunks.length) return;
+  // Приема оригинален индекс (както го вижда интерфейсът).
+  jumpToChunk(originIndex) {
+    if (!this.options) return;
+    const index = this.internalOf(originIndex);
+    if (index < 0 || index >= this.chunks.length) return;
     this.audio?.pause();
     this.cancelled = false;
     this.playFrom(index).catch((error) => {

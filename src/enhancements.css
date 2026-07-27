@@ -708,3 +708,85 @@ header.minimal{justify-content:space-between;gap:16px}
   .np-transport .np-main,.ab-transport .ab-main{width:60px;height:60px;min-width:60px}
   .np-quick-tools strong,.ab-quick-tools strong{font-size:18px}
 }
+
+/* ═══════ Изчистен начален екран (особено на телефон) ═══════ */
+
+/* Голяма карта „Продължи да слушаш“ — едно докосване подновява слушането. */
+.continue-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;width:100%;text-align:left;
+  border:1px solid #e6e8e2;background:#fff;border-radius:18px;padding:12px 14px;margin-bottom:18px;cursor:pointer;
+  box-shadow:0 10px 26px #0d29281a}
+.continue-card:active{transform:scale(.995)}
+.continue-card .cover-art{width:64px;aspect-ratio:2/3;border-radius:10px;box-shadow:0 6px 14px #0003}
+.continue-card .cover-art.gen{padding:6px}
+.continue-card .cover-art.gen .cover-initials{font-size:16px}
+.continue-card .cover-art.gen .cover-title{font-size:8px;-webkit-line-clamp:2}
+.continue-info{min-width:0;display:flex;flex-direction:column;gap:3px}
+.continue-label{font-size:9px;letter-spacing:1.2px;color:#ec705a;font-weight:700}
+.continue-info b{font-size:15px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.continue-info small{font-size:11px;color:#83918e}
+.continue-bar{display:block;height:4px;border-radius:3px;background:#e6e8e2;overflow:hidden;margin-top:4px}
+.continue-bar i{display:block;height:100%;background:#ec705a}
+.continue-meta{font-size:10px}
+.continue-play{width:48px;height:48px;border-radius:50%;background:#ec705a;color:#fff;display:grid;place-items:center;font-size:17px;flex:none;
+  box-shadow:0 8px 18px #ec705a55}
+
+/* Търсене в библиотеката */
+.library-search{width:100%;border:1px solid #dce3df;border-radius:12px;padding:11px 14px;font-size:14px;margin-bottom:18px;background:#fff;color:inherit}
+.library-search::placeholder{color:#9aa9a4}
+
+/* Заглавие + бутон „⋯“ на картата */
+.book-headline{display:grid;grid-template-columns:1fr auto;align-items:start;gap:4px}
+.book-headline-text{min-width:0}
+.book-more{display:none;border:0;background:transparent;color:#83918e;font-size:16px;line-height:1;padding:2px 4px;cursor:pointer;border-radius:6px}
+.book-more:hover{background:#eef1ee}
+.cover-badge{position:absolute;top:8px;right:8px;font-size:12px;background:#0d2928cc;border-radius:8px;padding:2px 5px}
+
+:root[data-theme="dark"] .continue-card{background:#16211f;border-color:#26332f}
+:root[data-theme="dark"] .continue-bar{background:#26332f}
+:root[data-theme="dark"] .library-search{background:#16211f;border-color:#2c3a36}
+:root[data-theme="dark"] .book-more:hover{background:#22302c}
+
+@media (max-width:640px){
+  .home{padding:14px 14px 150px}
+  /* Хиро-то се смалява — библиотеката трябва да е веднага видима. */
+  .home-hero{margin:2px 0 14px;align-items:center}
+  .home-hero h1{font-size:20px;margin:2px 0 0}
+  .home-hero .eyebrow{font-size:9px}
+  .new-book{padding:10px 14px;font-size:13px;border-radius:12px}
+
+  /* Само двете важни числа; останалите се скриват. */
+  .stats-bar{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:18px}
+  .stats-bar .stat{padding:10px 8px;border-radius:12px}
+  .stats-bar .stat b{font-size:15px}
+  .stats-bar .stat.secondary{display:none}
+
+  /* По-малки корици → повече книги на екран. */
+  .shelf{margin-bottom:22px}
+  .shelf h2{font-size:14px;margin-bottom:8px}
+  .shelf-row{grid-auto-columns:116px;gap:12px}
+  .book-card{width:116px}
+  .book-title{font-size:12px}
+  .book-author{font-size:10px}
+
+  /* Оценката и действията се показват само след „⋯“. */
+  .book-more{display:block}
+  .book-extra{display:none}
+  .book-card.open .book-extra{display:block}
+  .book-actions button{padding:6px 0;font-size:12px}
+  .book-rating button{font-size:15px;padding:2px}
+
+  /* Play-бутонът е винаги видим на телефон (няма hover). */
+  .book-cover-btn .cover-play{opacity:1;width:28px;height:28px;font-size:11px}
+
+  .continue-card{gap:12px;padding:10px 12px;border-radius:16px}
+  .continue-card .cover-art{width:56px}
+  .continue-info b{font-size:14px}
+  .continue-play{width:44px;height:44px;font-size:16px}
+}
+
+/* Превключвател „Редувай мъжки и женски глас“ */
+.alt-voices{display:flex;align-items:flex-start;gap:10px;margin:14px 0 0;padding:11px 12px;border:1px solid #dce3df;border-radius:12px;background:#fff;cursor:pointer}
+.alt-voices input{margin-top:2px;width:18px;height:18px;accent-color:#ec705a;flex:none}
+.alt-voices b{display:block;font-size:12px;font-weight:600}
+.alt-voices small{display:block;font-size:10px;color:#83918e;margin-top:2px}
+:root[data-theme="dark"] .alt-voices{background:#16211f;border-color:#2c3a36}

@@ -151,6 +151,56 @@ export const splitTextForSpeech = (text, { fastStart = true } = {}) => {
   return packSentences(sentences, capFor);
 };
 
+// При продължаване от средата на книга началното парче е с пълен размер и
+// генерирането му отнема секунди. Затова го режем на кратко начало + остатък:
+// звукът тръгва почти веднага, а остатъкът се дозарежда, докато слушаш.
+export const splitLeadIn = (chunkText) => {
+  const text = (chunkText || '').trim();
+  if (text.length <= FIRST_CHUNK_LENGTH * 1.5) return null;
+
+  const sentences = text.match(/[^.!?…]+[.!?…]+["“”']?|[^.!?…]+$/g) || [text];
+  let head = '';
+  let taken = 0;
+
+  while (taken < sentences.length && (head + sentences[taken]).trim().length <= FIRST_CHUNK_LENGTH) {
+    head += sentences[taken];
+    taken += 1;
+  }
+
+  // Изречението е по-дълго от лимита → режем по думи, за да не чакаме цялото.
+  if (!taken) {
+    const words = text.split(' ');
+    while (taken < words.length && (`${head} ${words[taken]}`).trim().length <= FIRST_CHUNK_LENGTH) {
+      head = `${head} ${words[taken]}`.trim();
+      taken += 1;
+    }
+    const rest = words.slice(taken).join(' ').trim();
+    return head && rest ? [head, rest] : null;
+  }
+
+  const rest = sentences.slice(taken).join('').trim();
+  return head.trim() && rest ? [head.trim(), rest] : null;
+};
+
+// Строи парчетата и — при продължаване от средата — реже началното парче,
+// така че първият звук да е готов за около секунда.
+export const buildChunksForPlayback = (text, { singleChunk = false, startChunk = 0 } = {}) => {
+  const chunks = singleChunk ? [(text || '').trim()].filter(Boolean) : splitTextForSpeech(text);
+  const origin = chunks.map((_, index) => index);
+  if (!chunks.length) return { chunks, origin, start: 0 };
+
+  const start = Math.min(Math.max(0, startChunk || 0), chunks.length - 1);
+  if (start > 0) {
+    const lead = splitLeadIn(chunks[start]);
+    if (lead) {
+      chunks.splice(start, 1, lead[0], lead[1]);
+      // И двете части сочат към оригиналния индекс, за да остане позицията стабилна.
+      origin.splice(start, 1, start, start);
+    }
+  }
+  return { chunks, origin, start };
+};
+
 const rateBucket = (rate) => {
   if (rate < 0.85) return 'slow';
   if (rate > 1.2) return 'fast';
@@ -193,6 +243,7 @@ export class GeminiTTS {
     this.url = null;
     this.cancelled = false;
     this.chunks = [];
+    this.origin = [];
     this.currentChunk = 0;
     this.options = null;
     this.ai = null;
@@ -289,7 +340,7 @@ export class GeminiTTS {
     if (index < 0 || index >= this.chunks.length) return Promise.resolve(null);
 
     const { rate = 1, language = 'bg' } = this.options;
-    const voiceName = alternatingVoiceForChunk(this.options, index);
+    const voiceName = alternatingVoiceForChunk(this.options, this.originOf(index));
     const key = cacheKey(voiceName, rate, language, this.chunks[index]);
 
     if (audioCache.has(key)) return Promise.resolve(audioCache.get(key));
@@ -325,6 +376,18 @@ export class GeminiTTS {
     this.options = options;
     this.ai = new GoogleGenAI({ apiKey: options.apiKey });
     this.chunks = options.singleChunk ? [(text || '').trim()] : splitTextForSpeech(text);
+    this.origin = this.chunks.map((_, index) => index);
+  }
+
+  // Оригиналният (стабилен) индекс на парче — по него се пази позицията в книгата.
+  originOf(index) {
+    return this.origin?.[index] ?? index;
+  }
+
+  // Вътрешният индекс за даден оригинален индекс (обратното на originOf).
+  internalOf(originIndex) {
+    const found = this.origin?.indexOf(originIndex);
+    return found === undefined || found < 0 ? originIndex : found;
   }
 
   async generate(text, options) {
@@ -332,22 +395,24 @@ export class GeminiTTS {
     this.cancelled = false;
     this.options = options;
     this.ai = new GoogleGenAI({ apiKey: options.apiKey });
-    this.chunks = options.singleChunk ? [(text || '').trim()] : splitTextForSpeech(text);
+
+    const built = buildChunksForPlayback(text, options);
+    this.chunks = built.chunks;
+    this.origin = built.origin;
 
     if (!this.chunks.length) {
       options.onEnd?.();
       return;
     }
 
-    const start = Math.min(Math.max(0, options.startChunk || 0), this.chunks.length - 1);
-    await this.playFrom(start);
+    await this.playFrom(built.start);
   }
 
   async playFrom(index) {
     if (this.cancelled || !this.options) return;
 
-    this.currentChunk = index;
-    this.options.onChunk?.(index, this.chunks.length);
+    this.currentChunk = this.originOf(index);
+    this.options.onChunk?.(this.currentChunk, this.chunks.length);
 
     const blob = await this.blobForChunk(index);
     if (this.cancelled || !blob) return;
@@ -398,7 +463,7 @@ export class GeminiTTS {
       const part = duration ? audio.currentTime / duration : 0;
       this.options?.onProgress?.(Math.min(99.5, ((index + part) / total) * 100));
       this.options?.onPosition?.({
-        chunk: index,
+        chunk: this.originOf(index),
         total,
         chunkTime: audio.currentTime || 0,
         chunkDuration: duration,
@@ -494,8 +559,11 @@ export class GeminiTTS {
     this.audio.currentTime = Math.max(0, Math.min(1, fraction)) * this.audio.duration;
   }
 
-  jumpToChunk(index) {
-    if (!this.options || index < 0 || index >= this.chunks.length) return;
+  // Приема оригинален индекс (както го вижда интерфейсът).
+  jumpToChunk(originIndex) {
+    if (!this.options) return;
+    const index = this.internalOf(originIndex);
+    if (index < 0 || index >= this.chunks.length) return;
     this.cancelled = false;
     this.playFrom(index).catch((error) => {
       this.stop();

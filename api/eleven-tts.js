@@ -20,8 +20,21 @@ const clientId = (request) => (
   || 'unknown'
 );
 
+const MAX_TRACKED_CLIENTS = 5000;
+
 const isRateLimited = (id) => {
   const now = Date.now();
+
+  // Чистим изтеклите записи, за да не расте Map-ът неограничено при дълго
+  // живееща функция (изтичане на памет).
+  if (requests.size > MAX_TRACKED_CLIENTS) {
+    for (const [key, value] of requests) {
+      if (now - value.started > WINDOW_MS) requests.delete(key);
+    }
+    // Ако всичко е още активно, започваме начисто вместо да растем безкрайно.
+    if (requests.size > MAX_TRACKED_CLIENTS) requests.clear();
+  }
+
   const current = requests.get(id);
   if (!current || now - current.started > WINDOW_MS) {
     requests.set(id, { started: now, count: 1 });
