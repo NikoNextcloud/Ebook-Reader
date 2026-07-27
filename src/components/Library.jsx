@@ -34,13 +34,15 @@ export default function Library({ books, activeId, onOpen, onResume, onRemove, o
                 <button className="library-open" onClick={() => onOpen(book)}>
                   <b>{book.title}</b>
                   <small>
-                    {book.words ? `${book.words.toLocaleString('bg-BG')} думи` : 'текст'}
-                    {book.chunkIndex > 0 ? ` · спряно на част ${book.chunkIndex + 1}` : ''}
+                    {book.mediaType === 'audio'
+                      ? `аудиокнига${book.progressPercent ? ` · ${book.progressPercent}%` : ''}`
+                      : book.words ? `${book.words.toLocaleString('bg-BG')} думи` : 'текст'}
+                    {book.mediaType !== 'audio' && book.chunkIndex > 0 ? ` · спряно на част ${book.chunkIndex + 1}` : ''}
                   </small>
                 </button>
               )}
               <button className="library-edit-btn" aria-label="Преименувай" onClick={() => startEdit(book)}>✎</button>
-              {book.chunkIndex > 0 && (
+              {(book.chunkIndex > 0 || book.audioPosition > 0) && (
                 <button className="library-resume" title="Продължи оттук" onClick={() => onResume(book)}>▶</button>
               )}
               <button className="library-remove" aria-label="Изтрий книгата" onClick={() => onRemove(book.id)}>✕</button>

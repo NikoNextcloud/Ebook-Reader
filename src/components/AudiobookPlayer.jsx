@@ -12,15 +12,29 @@ const fmt = (seconds) => {
     : `${minutes}:${String(rest).padStart(2, '0')}`;
 };
 
-export default function AudiobookPlayer({ book, onClose }) {
+export default function AudiobookPlayer({
+  book,
+  onClose,
+  onProgress,
+  onToggleFavorite,
+  onBookmark,
+  onRemoveBookmark,
+  onFinished,
+  onListening,
+}) {
   const audioRef = useRef(null);
   const frameRef = useRef(null);
+  const lastSavedRef = useRef(book.initialTime || 0);
+  const timeRef = useRef(book.initialTime || 0);
+  const durationRef = useRef(0);
   const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [currentTime, setCurrentTime] = useState(book.initialTime || 0);
   const [duration, setDuration] = useState(0);
   const [rate, setRate] = useState(1);
   const [energy, setEnergy] = useState(0);
   const [message, setMessage] = useState('');
+  const [sleepMinutes, setSleepMinutes] = useState(0);
+  const [sleepRemaining, setSleepRemaining] = useState(0);
 
   useEffect(() => {
     const tick = () => {
@@ -40,6 +54,37 @@ export default function AudiobookPlayer({ book, onClose }) {
   }, [playing]);
 
   useEffect(() => () => audioRef.current?.pause(), []);
+
+  useEffect(() => {
+    if (!playing) return undefined;
+    const timer = window.setInterval(() => onListening?.(1), 1000);
+    return () => window.clearInterval(timer);
+  }, [onListening, playing]);
+
+  useEffect(() => {
+    if (!sleepMinutes) {
+      setSleepRemaining(0);
+      return undefined;
+    }
+    const deadline = Date.now() + sleepMinutes * 60000;
+    setSleepRemaining(sleepMinutes * 60);
+    const timer = window.setInterval(() => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSleepRemaining(left);
+      if (!left) {
+        window.clearInterval(timer);
+        audioRef.current?.pause();
+        setSleepMinutes(0);
+        setMessage('Таймерът за сън спря аудиокнигата.');
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [sleepMinutes]);
+
+  const saveProgress = () => {
+    onProgress?.(timeRef.current, durationRef.current);
+    lastSavedRef.current = timeRef.current;
+  };
 
   const toggle = async () => {
     const audio = audioRef.current;
@@ -66,6 +111,8 @@ export default function AudiobookPlayer({ book, onClose }) {
     const audio = audioRef.current;
     if (!audio || !duration) return;
     audio.currentTime = Number(event.target.value);
+    timeRef.current = audio.currentTime;
+    saveProgress();
   };
 
   const changeRate = (value) => {
@@ -73,12 +120,37 @@ export default function AudiobookPlayer({ book, onClose }) {
     if (audioRef.current) audioRef.current.playbackRate = value;
   };
 
+  const jumpToBookmark = (time) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = time;
+    timeRef.current = time;
+    setCurrentTime(time);
+    saveProgress();
+  };
+
+  const close = () => {
+    saveProgress();
+    audioRef.current?.pause();
+    onClose?.(timeRef.current, durationRef.current);
+  };
+
+  const sleepLabel = sleepRemaining
+    ? `${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, '0')}`
+    : '';
+
   return (
     <div className={`audiobook-player ${playing ? 'is-speaking' : ''}`} style={{ '--voice-energy': energy }}>
       <div className="voice-glow" aria-hidden="true">
         {Array.from({ length: 18 }).map((_, index) => <i key={index} />)}
       </div>
-      <button className="ab-close" onClick={onClose} aria-label="Затвори">×</button>
+      <button className="ab-close" onClick={close} aria-label="Затвори">×</button>
+      <button
+        className={`ab-favorite ${book.favorite ? 'on' : ''}`}
+        onClick={onToggleFavorite}
+        aria-label={book.favorite ? 'Премахни от любими' : 'Добави в любими'}
+      >
+        ♥
+      </button>
 
       {book.coverUrl
         ? <img className="ab-cover" src={book.coverUrl} alt="" />
@@ -96,11 +168,31 @@ export default function AudiobookPlayer({ book, onClose }) {
         src={book.audioUrl}
         preload="metadata"
         playsInline
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
-        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime || 0)}
+        onLoadedMetadata={(event) => {
+          const audio = event.currentTarget;
+          const nextDuration = audio.duration || 0;
+          const resumeAt = Math.min(book.initialTime || 0, Math.max(0, nextDuration - 1));
+          durationRef.current = nextDuration;
+          timeRef.current = resumeAt;
+          setDuration(nextDuration);
+          setCurrentTime(resumeAt);
+          if (resumeAt) audio.currentTime = resumeAt;
+        }}
+        onTimeUpdate={(event) => {
+          const time = event.currentTarget.currentTime || 0;
+          const total = event.currentTarget.duration || durationRef.current;
+          timeRef.current = time;
+          durationRef.current = total;
+          setCurrentTime(time);
+          if (Math.abs(time - lastSavedRef.current) >= 5) saveProgress();
+        }}
         onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
+        onPause={() => { setPlaying(false); saveProgress(); }}
+        onEnded={() => {
+          setPlaying(false);
+          saveProgress();
+          onFinished?.();
+        }}
       />
 
       <div className="ab-progress">
@@ -129,6 +221,32 @@ export default function AudiobookPlayer({ book, onClose }) {
           <button key={speed} className={rate === speed ? 'on' : ''} onClick={() => changeRate(speed)}>{speed}×</button>
         ))}
       </div>
+
+      <div className="ab-tools">
+        <button onClick={() => onBookmark?.(currentTime)}>◆ Отметка</button>
+        <span>Таймер{sleepLabel ? ` · ${sleepLabel}` : ''}</span>
+        {[0, 15, 30, 45, 60].map((minutes) => (
+          <button
+            key={minutes}
+            className={sleepMinutes === minutes ? 'on' : ''}
+            onClick={() => setSleepMinutes(minutes)}
+          >
+            {minutes || 'Изкл.'}
+          </button>
+        ))}
+      </div>
+
+      {book.audioBookmarks?.length > 0 && (
+        <div className="ab-bookmarks">
+          <span>ОТМЕТКИ</span>
+          {book.audioBookmarks.map((mark) => (
+            <div key={mark.time}>
+              <button onClick={() => jumpToBookmark(mark.time)}>{mark.label || fmt(mark.time)}</button>
+              <button onClick={() => onRemoveBookmark?.(mark.time)} aria-label="Изтрий отметката">×</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <a className="ab-download" href={book.audioUrl} download={book.fileName}>↓ Запази аудиокнигата</a>
     </div>

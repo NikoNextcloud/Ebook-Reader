@@ -18,33 +18,34 @@ export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEd
     onEditorMode?.(sourceMode === 'manual');
   }, [onEditorMode, sourceMode]);
 
-  const finish = (title, value) => {
+  const finish = (title, value, details = {}) => {
     const clean = (value || '').trim();
     if (!clean) { setStatus('Не беше открит текст.'); return; }
     const chapters = splitIntoChapters(clean);
     setText(chapters ? chapters[0].text : clean);
-    onLoaded?.({ title, text: clean, chapters });
+    onLoaded?.({ title, text: clean, chapters, ...details });
     setStatus(`Готово · ${clean.split(/\s+/).filter(Boolean).length} думи${chapters ? ` · ${chapters.length} глави` : ''}`);
   };
 
-  const load = async (file) => {
+  const load = async (file, details = {}) => {
     if (!file) return;
     setBusy(true);
     setStatus(`Зареждам ${file.name}…`);
-    const title = file.name.replace(/\.(txt|docx|pdf|epub|md|rtf|html?|)$/i, '');
+    const fileTitle = file.name.replace(/\.(txt|docx|pdf|epub|md|rtf|html?|)$/i, '');
+    const title = details.title || fileTitle;
     try {
       const type = ext(file.name);
       if (type === 'txt') {
-        finish(title, await file.text());
+        finish(title, await file.text(), details);
       } else if (type === 'md' || type === 'markdown') {
-        finish(title, cleanMarkdown(await file.text()));
+        finish(title, cleanMarkdown(await file.text()), details);
       } else if (type === 'rtf') {
-        finish(title, cleanRtf(await file.text()));
+        finish(title, cleanRtf(await file.text()), details);
       } else if (type === 'html' || type === 'htm') {
-        finish(title, cleanHtml(await file.text()));
+        finish(title, cleanHtml(await file.text()), details);
       } else if (type === 'docx') {
         const mammoth = (await import('mammoth')).default;
-        finish(title, (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value);
+        finish(title, (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value, details);
       } else if (type === 'pdf') {
         const buffer = await file.arrayBuffer();
         const pdfjsLib = await import('pdfjs-dist');
@@ -62,12 +63,17 @@ export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEd
           const { ocrPdf } = await import('../services/ocr');
           value = await ocrPdf(buffer.slice(0), (p) => setStatus(`OCR разпознаване… ${p}%`));
         }
-        finish(title, cleanPdfText(value));
+        finish(title, cleanPdfText(value), details);
       } else if (type === 'epub') {
         const { parseEpub } = await import('../services/epub');
         const book = await parseEpub(await file.arrayBuffer());
         setText(book.chapters[0].text);
-        onLoaded?.({ title: book.title || title, text: book.chapters.map((c) => c.text).join('\n\n'), chapters: book.chapters });
+        onLoaded?.({
+          title: details.title || book.title || title,
+          text: book.chapters.map((c) => c.text).join('\n\n'),
+          chapters: book.chapters,
+          ...details,
+        });
         setStatus(`Готово · ${book.chapters.length} глави`);
       } else {
         throw new Error('Поддържат се .txt, .md, .rtf, .html, .docx, .pdf и .epub файлове.');
@@ -122,8 +128,14 @@ export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEd
       <section className="card text-card source-card">
         <BookSourcePicker
           onManual={() => setSourceMode('manual')}
-          onDocument={async (file) => {
-            await load(file);
+          onDocument={async (file, context) => {
+            await load(file, {
+              title: context?.book?.name,
+              favorite: context?.favorite,
+              source: context?.source,
+              sourceUrl: context?.book?.url,
+              remoteKey: context?.remoteKey,
+            });
             setSourceMode('manual');
           }}
           onAudio={onAudioLoaded}

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  loadBooks, saveBook, updatePosition, updateTitle, removeBook,
-  addBookmark, removeBookmark, exportLibrary, importLibrary,
+  loadBooks, saveBook, saveAudioBook, updatePosition, updateAudioPosition, updateTitle, removeBook,
+  addBookmark, removeBookmark, addAudioBookmark, removeAudioBookmark, exportLibrary, importLibrary,
 } from './library';
 
 beforeEach(() => localStorage.clear());
@@ -49,5 +49,26 @@ describe('library', () => {
     const rec = saveBook({ title: 'За триене', text: 'ще бъде изтрита' });
     removeBook(rec.id);
     expect(loadBooks()).toHaveLength(0);
+  });
+
+  it('пази позиция и отметки в аудиокнига', () => {
+    const rec = saveAudioBook({
+      title: 'Аудио тест',
+      sourceUrl: 'https://mega.nz/file/test',
+      remoteKey: 'mega:test',
+      favorite: true,
+    });
+    updateAudioPosition(rec.id, 90, 300);
+    addAudioBookmark(rec.id, 75, 'Любим момент');
+
+    let saved = loadBooks()[0];
+    expect(saved.audioPosition).toBe(90);
+    expect(saved.progressPercent).toBe(30);
+    expect(saved.favorite).toBe(true);
+    expect(saved.audioBookmarks).toHaveLength(1);
+
+    removeAudioBookmark(rec.id, 75);
+    saved = loadBooks()[0];
+    expect(saved.audioBookmarks).toHaveLength(0);
   });
 });

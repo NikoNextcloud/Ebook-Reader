@@ -5,7 +5,9 @@ const estimateChunks = (book) => Math.max(1, Math.ceil((book.text?.length || 0) 
 
 export default function Home({ books, stats, queue, onOpen, onNew, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove }) {
   const shelves = [
-    ['Продължи да слушаш', books.filter((b) => b.chunkIndex > 0 && !b.finished)],
+    ['Продължи да слушаш', books.filter((b) => (
+      (b.chunkIndex > 0 || b.audioPosition > 0) && !b.finished
+    ))],
     ['Любими', books.filter((b) => b.favorite)],
     ['Свалени офлайн', books.filter((b) => b.cachedOffline)],
     ['Завършени', books.filter((b) => b.finished)],

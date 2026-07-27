@@ -18,9 +18,12 @@ import {
   splitTextForSpeech,
 } from './services/geminiTtsService';
 import {
-  loadBooks, saveBook, updatePosition, updateTitle, removeBook, makeTitle, setBookField,
-  addBookmark, removeBookmark, exportLibrary, importLibrary,
+  loadBooks, saveBook, saveAudioBook, updatePosition, updateAudioPosition,
+  updateTitle, removeBook, makeTitle, setBookField, addBookmark, removeBookmark,
+  addAudioBookmark, removeAudioBookmark, exportLibrary, importLibrary,
 } from './services/library';
+import { downloadRemoteItem, openRemoteCatalog } from './services/remoteBooks';
+import { setRemoteFavorite } from './services/remoteFavorites';
 import { loadSettings, saveSettings } from './services/settings';
 import { detectLanguage, langLabel } from './services/lang';
 import { idbClear } from './services/idbCache';
@@ -321,22 +324,39 @@ export default function App() {
   const deleteBookmark = (id, chunkIndex) => { removeBookmark(id, chunkIndex); refreshBooks(); };
 
   // ——— Библиотека / карти ———
-  const openBook = (book) => { setPlayerOpen(true); openAndPlay(book); };
+  const openTextBook = (book) => { setPlayerOpen(true); openAndPlay(book); };
   const deleteBook = (id) => { removeBook(id); if (id === currentBookId) setCurrentBookId(null); refreshBooks(); };
   const renameBook = (id, title) => { updateTitle(id, title); if (id === currentBookId) fileTitle.current = title; refreshBooks(); };
   const rateBook = (id, value) => { setBookField(id, { rating: value }); refreshBooks(); };
-  const toggleFavorite = (book) => { setBookField(book.id, { favorite: !book.favorite }); refreshBooks(); };
+  const toggleFavorite = (book) => {
+    const next = !book.favorite;
+    setBookField(book.id, { favorite: next });
+    if (book.remoteKey) setRemoteFavorite(book.remoteKey, next);
+    refreshBooks();
+  };
   const toggleFinished = (book) => { setBookField(book.id, { finished: !book.finished }); refreshBooks(); };
   const enqueue = (book) => { setQueue((q) => (q.includes(book.id) ? q : [...q, book.id])); setMessage(`„${book.title}“ е добавена в опашката.`); };
 
-  const onLoaded = ({ title, text: loadedText, chapters: loadedChapters, author, cover }) => {
+  const onLoaded = ({
+    title, text: loadedText, chapters: loadedChapters, author, cover,
+    favorite, source, sourceUrl, remoteKey,
+  }) => {
     fileTitle.current = title;
     setChapters(loadedChapters || null);
     setActiveChapter(0);
-    const record = saveBook({ title, text: loadedText, author, cover });
+    const record = saveBook({
+      title,
+      text: loadedText,
+      author,
+      cover,
+      favorite,
+      source,
+      sourceUrl,
+      remoteKey,
+    });
     if (record) { setCurrentBookId(record.id); refreshBooks(); }
   };
-  const openAudioBook = ({ file, metadata, cover }) => {
+  const openAudioBook = ({ file, metadata, cover }, context = {}) => {
     tts.current.stop();
     ambient.current.stop();
     setStatus('stopped');
@@ -345,19 +365,106 @@ export default function App() {
     const audioUrl = URL.createObjectURL(file);
     const coverUrl = cover ? URL.createObjectURL(cover) : '';
     audioBookUrls.current = [audioUrl, coverUrl].filter(Boolean);
-    setAudioBook({
-      title: metadata?.title || file.name.replace(/\.(m4b|m4a|mp3|aac)$/i, ''),
-      author: metadata?.authors?.join(', ') || '',
+    const sourceBook = context.book || context.item || {};
+    const title = metadata?.title
+      || sourceBook.name?.replace(/\.(m4b|m4a|mp3|aac)$/i, '')
+      || file.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '');
+    const record = saveAudioBook({
+      id: context.libraryId,
+      title,
+      author: metadata?.authors?.join(', ') || context.author || '',
       narrator: metadata?.narrators?.join(', ') || '',
+      fileName: file.name,
+      source: context.source || 'mega',
+      sourceUrl: sourceBook.url || context.item?.url || '',
+      remoteKey: context.remoteKey,
+      category: sourceBook.category || context.item?.category || '',
+      favorite: context.favorite,
+    });
+    if (record) refreshBooks();
+    setAudioBook({
+      id: record?.id,
+      title,
+      author: metadata?.authors?.join(', ') || record?.author || '',
+      narrator: metadata?.narrators?.join(', ') || record?.narrator || '',
       audioUrl,
       coverUrl,
       fileName: file.name,
+      favorite: !!record?.favorite,
+      initialTime: record?.audioPosition || 0,
+      audioBookmarks: record?.audioBookmarks || [],
+      sourceUrl: record?.sourceUrl || '',
+      remoteKey: record?.remoteKey || '',
     });
   };
-  const closeAudioBook = () => {
+  const closeAudioBook = (currentTime, duration) => {
+    if (audioBook?.id) updateAudioPosition(audioBook.id, currentTime, duration);
     setAudioBook(null);
     audioBookUrls.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
     audioBookUrls.current = [];
+    refreshBooks();
+  };
+  const refreshAudioBook = (id) => {
+    const saved = loadBooks().find((book) => book.id === id);
+    if (saved) {
+      setAudioBook((current) => (current?.id === id ? {
+        ...current,
+        favorite: !!saved.favorite,
+        audioBookmarks: saved.audioBookmarks || [],
+      } : current));
+    }
+    refreshBooks();
+  };
+  const toggleAudioFavorite = () => {
+    if (!audioBook?.id) return;
+    const next = !audioBook.favorite;
+    setBookField(audioBook.id, { favorite: next });
+    if (audioBook.remoteKey) setRemoteFavorite(audioBook.remoteKey, next);
+    refreshAudioBook(audioBook.id);
+  };
+  const bookmarkAudio = (time) => {
+    if (!audioBook?.id) return;
+    addAudioBookmark(audioBook.id, time);
+    refreshAudioBook(audioBook.id);
+  };
+  const deleteAudioBookmark = (time) => {
+    if (!audioBook?.id) return;
+    removeAudioBookmark(audioBook.id, time);
+    refreshAudioBook(audioBook.id);
+  };
+  const resumeAudioBook = async (book) => {
+    if (audioBook?.id === book.id) return;
+    if (!book.sourceUrl) {
+      setMessage('Тази аудиокнига трябва да бъде избрана отново от Mega.');
+      setView('create');
+      return;
+    }
+    setMessage(`Зареждам „${book.title}“ от запазената позиция…`);
+    try {
+      const catalog = await openRemoteCatalog(book.sourceUrl, book.title);
+      const item = catalog.items[0];
+      if (!item) throw new Error('Аудиофайлът вече не е наличен.');
+      const downloaded = await downloadRemoteItem(item);
+      openAudioBook(downloaded, {
+        item,
+        book: { ...item, name: book.title, url: book.sourceUrl },
+        libraryId: book.id,
+        favorite: book.favorite,
+        remoteKey: book.remoteKey,
+        source: book.source,
+      });
+      setMessage('');
+    } catch (error) {
+      setMessage(error.message || 'Аудиокнигата не може да се зареди отново.');
+      setView('create');
+    }
+  };
+  const openBook = (book) => {
+    if (book.mediaType === 'audio') {
+      resumeAudioBook(book);
+      return;
+    }
+    openTextBook(book);
   };
   const selectChapter = (index) => {
     if (!chapters?.[index]) return;
@@ -368,9 +475,14 @@ export default function App() {
     setActiveChunk(-1);
     if (apiKey.trim()) beginPlayback(chapters[index].text, 0, currentBookId);
   };
-  const saveCurrent = () => {
-    const record = saveBook({ id: currentBookId, title: fileTitle.current || makeTitle(text), text });
-    if (record) { setCurrentBookId(record.id); refreshBooks(); setMessage('Запазено в библиотеката.'); }
+  const toggleCurrentFavorite = () => {
+    const record = ensureSaved();
+    if (!record) return;
+    const next = !record.favorite;
+    setBookField(record.id, { favorite: next });
+    if (record.remoteKey) setRemoteFavorite(record.remoteKey, next);
+    refreshBooks();
+    setMessage(next ? 'Добавено в любими.' : 'Премахнато от любими.');
   };
 
   // ——— Сваляне / офлайн / резервно копие ———
@@ -567,7 +679,14 @@ export default function App() {
                     <small>{words} думи · около {mins} мин.</small>
                   </div>
                 </button>
-                <button className="save-book" onClick={saveCurrent} disabled={!text.trim()} title="Запази в библиотеката">★</button>
+                <button
+                  className={`save-book ${currentBook?.favorite ? 'on' : ''}`}
+                  onClick={toggleCurrentFavorite}
+                  disabled={!text.trim()}
+                  title={currentBook?.favorite ? 'Премахни от любими' : 'Добави в любими'}
+                >
+                  ♥
+                </button>
               </div>
             </aside>}
           </div>
@@ -632,7 +751,21 @@ export default function App() {
           onChapterMode={setChapterMode}
         />
       )}
-      {audioBook && <AudiobookPlayer book={audioBook} onClose={closeAudioBook} />}
+      {audioBook && (
+        <AudiobookPlayer
+          book={audioBook}
+          onClose={closeAudioBook}
+          onProgress={(time, duration) => updateAudioPosition(audioBook.id, time, duration)}
+          onToggleFavorite={toggleAudioFavorite}
+          onBookmark={bookmarkAudio}
+          onRemoveBookmark={deleteAudioBookmark}
+          onFinished={() => {
+            setBookField(audioBook.id, { finished: true });
+            refreshAudioBook(audioBook.id);
+          }}
+          onListening={(seconds) => addListening(seconds)}
+        />
+      )}
       {view === 'create' && <footer>VOXORA · Gemini AI гласове</footer>}
     </>
   );

@@ -8,6 +8,11 @@ import {
   loadMegaCatalog,
   openRemoteCatalog,
 } from '../services/remoteBooks';
+import {
+  loadRemoteFavorites,
+  remoteBookKey,
+  setRemoteFavorite,
+} from '../services/remoteFavorites';
 
 const MEGA_LIBRARY_URL = 'https://mega.nz/folder/A3QgXZTI#1km3sx2JBYE_xIGoDyV_sQ';
 const FOUR_ETI_URL = 'https://4eti.me/';
@@ -29,6 +34,8 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [favoriteKeys, setFavoriteKeys] = useState(() => loadRemoteFavorites());
+  const [showFavorites, setShowFavorites] = useState(false);
 
   const visibleItems = useMemo(() => {
     if (!catalog) return [];
@@ -40,9 +47,10 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
         || item.category === activeCategory;
       const matches = !query
         || `${item.name} ${item.path || ''}`.toLocaleLowerCase('bg-BG').includes(query);
-      return inCategory && matches;
+      const favorite = favoriteKeys.has(remoteBookKey(source, item));
+      return inCategory && matches && (!showFavorites || favorite);
     });
-  }, [activeCategory, catalog, search, source]);
+  }, [activeCategory, catalog, favoriteKeys, search, showFavorites, source]);
 
   const chooseSource = async (nextSource) => {
     if (nextSource === 'manual') {
@@ -54,6 +62,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setBusy(true);
     setCatalog(null);
     setSearch('');
+    setShowFavorites(false);
     setStatus(nextSource === 'mega' ? 'Зареждам Mega библиотеката…' : 'Зареждам 4eti.me…');
     try {
       if (nextSource === 'mega') {
@@ -80,6 +89,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     if (busy || category.name === activeCategory) return;
     setActiveCategory(category.name);
     setSearch('');
+    setShowFavorites(false);
 
     if (source === 'mega') return;
     setBusy(true);
@@ -95,7 +105,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     }
   };
 
-  const importRemoteItem = async (item) => {
+  const importRemoteItem = async (item, context = {}) => {
     if (item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES) {
       window.open(item.url, '_blank', 'noopener,noreferrer');
       setStatus('Файлът е твърде голям за паметта на телефона и е отворен в Mega.');
@@ -108,8 +118,17 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     ) return;
 
     const downloaded = await downloadRemoteItem(item);
-    if (item.kind === 'audio') onAudio(downloaded);
-    else await onDocument(downloaded.file);
+    const book = context.book || item;
+    const key = remoteBookKey(source, book);
+    const details = {
+      item,
+      book,
+      source,
+      favorite: favoriteKeys.has(key),
+      remoteKey: key,
+    };
+    if (item.kind === 'audio') onAudio(downloaded, details);
+    else await onDocument(downloaded.file, details);
   };
 
   const chooseFourEtiBook = async (book) => {
@@ -127,7 +146,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     }
     if (!candidates.length) throw new Error('За тази книга не беше намерен достъпен PDF, EPUB или DOCX файл.');
     candidates.sort((a, b) => documentScore(a) - documentScore(b));
-    await importRemoteItem(candidates[0]);
+    await importRemoteItem(candidates[0], { book });
   };
 
   const chooseBook = async (item) => {
@@ -136,7 +155,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setStatus(`Зареждам „${item.name}“…`);
     try {
       if (source === '4eti') await chooseFourEtiBook(item);
-      else await importRemoteItem(item);
+      else await importRemoteItem(item, { book: item });
     } catch (error) {
       setStatus(error.message || 'Книгата не може да се зареди.');
     } finally {
@@ -150,7 +169,15 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setCategories([]);
     setActiveCategory('');
     setSearch('');
+    setShowFavorites(false);
     setStatus('');
+  };
+
+  const toggleFavorite = (item) => {
+    const key = remoteBookKey(source, item);
+    const next = !favoriteKeys.has(key);
+    setFavoriteKeys(new Set(setRemoteFavorite(key, next)));
+    setStatus(next ? `„${item.name}“ е добавена в любими.` : `„${item.name}“ е премахната от любими.`);
   };
 
   if (!source) {
@@ -217,24 +244,46 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
           onChange={(event) => setSearch(event.target.value)}
           disabled={!catalog}
         />
+        <button
+          className={showFavorites ? 'on' : ''}
+          onClick={() => setShowFavorites((value) => !value)}
+          aria-label={showFavorites ? 'Покажи всички книги' : 'Покажи само любимите'}
+          title={showFavorites ? 'Покажи всички' : 'Само любими'}
+          disabled={!catalog}
+        >
+          ♥
+        </button>
         <span>{busy ? '…' : visibleItems.length}</span>
       </div>
 
       <div className={`source-books ${busy && !catalog ? 'loading' : ''}`}>
         {!catalog && <p>{status}</p>}
-        {catalog && visibleItems.slice(0, 100).map((item) => (
-          <button key={item.id} onClick={() => chooseBook(item)} disabled={busy}>
-            <span className={`source-book-icon ${item.kind}`}>{item.kind === 'audio' ? '▶' : 'Aa'}</span>
-            <span>
-              <b>{item.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '')}</b>
-              <small>{[
-                source === 'mega' ? item.category : activeCategory,
-                formatRemoteSize(item.size),
-              ].filter(Boolean).join(' · ')}</small>
-            </span>
-            <i>{item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES ? 'Mega' : '›'}</i>
-          </button>
-        ))}
+        {catalog && visibleItems.slice(0, 100).map((item) => {
+          const favorite = favoriteKeys.has(remoteBookKey(source, item));
+          return (
+            <div className="source-book-row" key={item.id}>
+              <button className="source-book-open" onClick={() => chooseBook(item)} disabled={busy}>
+                <span className={`source-book-icon ${item.kind}`}>{item.kind === 'audio' ? '▶' : 'Aa'}</span>
+                <span>
+                  <b>{item.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '')}</b>
+                  <small>{[
+                    source === 'mega' ? item.category : activeCategory,
+                    formatRemoteSize(item.size),
+                  ].filter(Boolean).join(' · ')}</small>
+                </span>
+                <i>{item.kind === 'audio' && item.size > MAX_IN_APP_AUDIO_BYTES ? 'Mega' : '›'}</i>
+              </button>
+              <button
+                className={`source-book-favorite ${favorite ? 'on' : ''}`}
+                onClick={() => toggleFavorite(item)}
+                aria-label={favorite ? 'Премахни от любими' : 'Добави в любими'}
+                title={favorite ? 'Премахни от любими' : 'Добави в любими'}
+              >
+                ♥
+              </button>
+            </div>
+          );
+        })}
         {catalog && !visibleItems.length && !busy && <p>Няма книги по това търсене.</p>}
       </div>
 

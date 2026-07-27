@@ -2,13 +2,16 @@ import Cover from './Cover';
 
 // Карта на книга в рафт: корица, прогрес-пръстен, заглавие, автор, действия.
 export default function BookCard({ book, totalChunks, onOpen, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove }) {
-  const pct = totalChunks ? Math.min(100, Math.round((book.chunkIndex / totalChunks) * 100)) : 0;
+  const pct = book.mediaType === 'audio'
+    ? (book.progressPercent || 0)
+    : totalChunks ? Math.min(100, Math.round((book.chunkIndex / totalChunks) * 100)) : 0;
+  const hasProgress = book.mediaType === 'audio' ? book.audioPosition > 0 : book.chunkIndex > 0;
 
   return (
     <div className="book-card">
       <button className="book-cover-btn" onClick={() => onOpen(book)} aria-label={`Отвори ${book.title}`}>
         <Cover book={book} />
-        {book.chunkIndex > 0 && !book.finished && (
+        {hasProgress && !book.finished && (
           <span className="cover-progress" style={{ '--pct': `${pct}%` }}><i /></span>
         )}
         {book.finished && <span className="cover-done">✓</span>}
