@@ -57,6 +57,7 @@ describe('library', () => {
       sourceUrl: 'https://mega.nz/file/test',
       remoteKey: 'mega:test',
       favorite: true,
+      cover: 'data:image/jpeg;base64,cover',
     });
     updateAudioPosition(rec.id, 90, 300);
     addAudioBookmark(rec.id, 75, 'Любим момент');
@@ -65,6 +66,7 @@ describe('library', () => {
     expect(saved.audioPosition).toBe(90);
     expect(saved.progressPercent).toBe(30);
     expect(saved.favorite).toBe(true);
+    expect(saved.cover).toBe('data:image/jpeg;base64,cover');
     expect(saved.audioBookmarks).toHaveLength(1);
 
     removeAudioBookmark(rec.id, 75);

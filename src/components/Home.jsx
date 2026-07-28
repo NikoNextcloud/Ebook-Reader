@@ -22,7 +22,7 @@ const remainingOf = (book) => {
 const inProgress = (book) => (book.chunkIndex > 0 || book.audioPosition > 0) && !book.finished;
 
 export default function Home({
-  books, stats, queue, onOpen, onNew, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove,
+  books, stats, queue, onOpen, onNew, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove, onCoverChange,
 }) {
   const [query, setQuery] = useState('');
 
@@ -51,7 +51,9 @@ export default function Home({
       ['Всички книги', filtered],
     ].filter(([, list]) => list.length);
 
-  const cardProps = { onOpen, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove };
+  const cardProps = {
+    onOpen, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove, onCoverChange,
+  };
 
   return (
     <div className="home">

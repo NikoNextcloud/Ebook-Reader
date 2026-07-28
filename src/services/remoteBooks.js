@@ -340,6 +340,11 @@ const downloadMegaMetadata = async (node) => {
   return { metadata, cover };
 };
 
+export const downloadRemoteArtwork = async (item) => {
+  if (item?.provider !== 'mega' || !item._node) return { metadata: null, cover: null };
+  return downloadMegaMetadata(item._node);
+};
+
 export const downloadRemoteItem = async (item, onProgress) => {
   if (item.provider === 'mega') {
     const type = item.kind === 'audio' ? 'audio/mp4' : '';

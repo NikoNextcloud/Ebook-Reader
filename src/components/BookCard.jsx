@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Cover from './Cover';
 
 // Карта на книга в рафт. На телефон показва само корица + заглавие;
 // оценката и действията се отварят с бутона „⋯“, за да е екранът изчистен.
-export default function BookCard({ book, totalChunks, onOpen, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove }) {
+export default function BookCard({
+  book, totalChunks, onOpen, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove, onCoverChange,
+}) {
   const [open, setOpen] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const coverInput = useRef();
 
   const pct = book.mediaType === 'audio'
     ? (book.progressPercent || 0)
@@ -49,7 +53,27 @@ export default function BookCard({ book, totalChunks, onOpen, onRate, onToggleFa
             <button className={book.favorite ? 'on' : ''} title="Любима" onClick={() => onToggleFavorite(book)}>♥</button>
             <button className={book.finished ? 'on' : ''} title="Завършена" onClick={() => onToggleFinished(book)}>✓</button>
             <button title="Добави в опашката" onClick={() => onQueue(book)}>＋</button>
+            <button title={book.cover ? 'Смени корицата' : 'Добави корица'} onClick={() => coverInput.current?.click()} disabled={coverBusy}>▣</button>
             <button title="Изтрий" onClick={() => onRemove(book.id)}>🗑</button>
+            <input
+              ref={coverInput}
+              hidden
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                setCoverBusy(true);
+                try {
+                  await onCoverChange?.(book, file);
+                } catch {
+                  // App показва съобщението за грешка.
+                } finally {
+                  setCoverBusy(false);
+                  event.target.value = '';
+                }
+              }}
+            />
           </div>
         </div>
       </div>

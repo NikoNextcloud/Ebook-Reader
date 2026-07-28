@@ -42,6 +42,7 @@ import {
   removeCachedAudioBook,
 } from './services/audiobookCache';
 import { addListening, flushListening, getStats } from './services/stats';
+import { prepareCoverImage } from './services/coverImage';
 
 const sample = 'Понякога най-добрите истории не чакат да бъдат написани. Те вече са тук — в статиите, които пазим, в бележките, към които се връщаме, и в думите, за които рядко намираме време. Voxora превръща всеки текст в лично аудио изживяване.';
 
@@ -83,6 +84,7 @@ export default function App() {
   const [voiceEnergy, setVoiceEnergy] = useState(0);
   const [audioBook, setAudioBook] = useState(null);
   const [editorReady, setEditorReady] = useState(false);
+  const [draftCover, setDraftCover] = useState('');
 
   const ambient = useRef(new AmbientAudio());
   const geminiTts = useRef(new GeminiTTS());
@@ -121,8 +123,15 @@ export default function App() {
 
   const currentBook = useMemo(
     () => books.find((b) => b.id === currentBookId)
-      || (currentBookId ? { id: currentBookId, title: fileTitle.current || makeTitle(text), text, chunkIndex: 0, bookmarks: [] } : null),
-    [books, currentBookId, text],
+      || (currentBookId ? {
+        id: currentBookId,
+        title: fileTitle.current || makeTitle(text),
+        text,
+        cover: draftCover,
+        chunkIndex: 0,
+        bookmarks: [],
+      } : null),
+    [books, currentBookId, draftCover, text],
   );
 
   useEffect(() => { chaptersRef.current = chapters; }, [chapters]);
@@ -192,7 +201,12 @@ export default function App() {
   };
 
   const ensureSaved = () => {
-    const record = saveBook({ id: currentBookId, title: fileTitle.current, text });
+    const record = saveBook({
+      id: currentBookId,
+      title: fileTitle.current,
+      text,
+      cover: draftCover,
+    });
     if (record) { setCurrentBookId(record.id); refreshBooks(); }
     return record;
   };
@@ -307,6 +321,7 @@ export default function App() {
     setChapters(null);
     setActiveChapter(0);
     fileTitle.current = book.title;
+    setDraftCover(book.cover || '');
     setCurrentBookId(book.id);
     setProgress(0);
     setPosition(null);
@@ -411,19 +426,50 @@ export default function App() {
   };
   const toggleFinished = (book) => { setBookField(book.id, { finished: !book.finished }); refreshBooks(); };
   const enqueue = (book) => { setQueue((q) => (q.includes(book.id) ? q : [...q, book.id])); setMessage(`„${book.title}“ е добавена в опашката.`); };
+  const changeBookCover = async (book, file) => {
+    try {
+      const cover = await prepareCoverImage(file);
+      setBookField(book.id, { cover, updatedAt: Date.now() });
+      if (book.id === currentBookId) setDraftCover(cover);
+      refreshBooks();
+      setMessage(`Корицата на „${book.title}“ е обновена.`);
+      return cover;
+    } catch (error) {
+      setMessage(error.message || 'Корицата не може да бъде добавена.');
+      throw error;
+    }
+  };
+  const changeDraftCover = async (file, options = {}) => {
+    const cover = options.prepared ? file : await prepareCoverImage(file);
+    setDraftCover(cover || '');
+    if (currentBookId) {
+      setBookField(currentBookId, { cover: cover || '', updatedAt: Date.now() });
+      refreshBooks();
+    }
+    return cover;
+  };
+  const clearDraftCover = () => {
+    setDraftCover('');
+    if (currentBookId) {
+      setBookField(currentBookId, { cover: '', updatedAt: Date.now() });
+      refreshBooks();
+    }
+  };
 
   const onLoaded = ({
     title, text: loadedText, chapters: loadedChapters, author, cover,
     favorite, source, sourceUrl, remoteKey,
   }) => {
+    const nextCover = cover || draftCover || '';
     fileTitle.current = title;
+    setDraftCover(nextCover);
     setChapters(loadedChapters || null);
     setActiveChapter(0);
     const record = saveBook({
       title,
       text: loadedText,
       author,
-      cover,
+      cover: nextCover,
       favorite,
       source,
       sourceUrl,
@@ -438,10 +484,12 @@ export default function App() {
     setPlayerOpen(false);
     audioBookUrls.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
     // При поток няма локален файл — плеърът чете направо от сървъра.
-    const audioUrl = streamUrl || URL.createObjectURL(file);
-    const coverUrl = cover ? URL.createObjectURL(cover) : '';
-    audioBookUrls.current = [streamUrl ? '' : audioUrl, coverUrl].filter(Boolean);
     const sourceBook = context.book || context.item || {};
+    const audioUrl = streamUrl || URL.createObjectURL(file);
+    const coverSource = sourceBook.cover || cover || '';
+    const generatedCoverUrl = coverSource instanceof Blob ? URL.createObjectURL(coverSource) : '';
+    const coverUrl = generatedCoverUrl || coverSource;
+    audioBookUrls.current = [streamUrl ? '' : audioUrl, generatedCoverUrl].filter(Boolean);
     const fileName = file?.name || name || '';
     const title = metadata?.title
       || sourceBook.name?.replace(/\.(m4b|m4a|mp3|aac)$/i, '')
@@ -458,9 +506,21 @@ export default function App() {
       remoteKey: context.remoteKey,
       category: sourceBook.category || context.item?.category || '',
       favorite: context.favorite,
+      cover: typeof coverSource === 'string' ? coverSource : undefined,
     });
     if (record) {
       refreshBooks();
+      if (coverSource instanceof Blob && !sourceBook.cover) {
+        prepareCoverImage(coverSource).then((storedCover) => {
+          setBookField(record.id, { cover: storedCover });
+          refreshBooks();
+          setAudioBook((current) => (
+            current?.id === record.id ? { ...current, coverUrl: storedCover } : current
+          ));
+        }).catch(() => {
+          // Временната Blob корица остава видима в текущата сесия.
+        });
+      }
       if (file && !context.fromCache && (record.source === 'mega' || context.source === 'mega')) {
         cacheAudioBook({
           remoteKey: record.remoteKey,
@@ -786,12 +846,19 @@ export default function App() {
           stats={stats}
           queue={queue}
           onOpen={openBook}
-          onNew={() => { setView('create'); setText(''); setCurrentBookId(null); fileTitle.current = ''; }}
+          onNew={() => {
+            setView('create');
+            setText('');
+            setCurrentBookId(null);
+            setDraftCover('');
+            fileTitle.current = '';
+          }}
           onRate={rateBook}
           onToggleFavorite={toggleFavorite}
           onToggleFinished={toggleFinished}
           onQueue={enqueue}
           onRemove={deleteBook}
+          onCoverChange={changeBookCover}
         />
       ) : (
         <main>
@@ -804,7 +871,16 @@ export default function App() {
             <div className="orb" aria-hidden="true"><i /><i /><i /><span>▶</span></div>
           </section>
           <div className={`workspace ${editorReady ? '' : 'source-workspace'}`}>
-            <TextInput text={text} setText={setText} onLoaded={onLoaded} onAudioLoaded={openAudioBook} onEditorMode={setEditorReady} />
+            <TextInput
+              text={text}
+              setText={setText}
+              cover={draftCover}
+              onCoverFile={changeDraftCover}
+              onCoverClear={clearDraftCover}
+              onLoaded={onLoaded}
+              onAudioLoaded={openAudioBook}
+              onEditorMode={setEditorReady}
+            />
             {editorReady && <aside className="card settings">
               <Library
                 books={books}

@@ -3,6 +3,7 @@ import {
   audioStreamUrl,
   discoverFourEtiPage,
   downloadRemoteItem,
+  downloadRemoteArtwork,
   formatRemoteSize,
   loadFourEtiLibrary,
   loadMegaCatalog,
@@ -121,7 +122,18 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     // /api/mega-stream и тегли само парчето, което свири — така тръгват
     // веднага и не задръстват паметта на телефона (проблемът на iPhone).
     if (item.kind === 'audio' && item.provider === 'mega') {
-      onAudio({ streamUrl: audioStreamUrl(item.url, item.name), name: item.name, size: item.size }, details);
+      let artwork = { metadata: null, cover: null };
+      try {
+        artwork = await downloadRemoteArtwork(item);
+      } catch {
+        // Книгата може да се пусне и без автоматична корица.
+      }
+      onAudio({
+        streamUrl: audioStreamUrl(item.url, item.name),
+        name: item.name,
+        size: item.size,
+        ...artwork,
+      }, details);
       return;
     }
 

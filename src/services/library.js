@@ -100,7 +100,7 @@ export const saveBook = ({
 };
 
 export const saveAudioBook = ({
-  id, title, author, narrator, fileName, source, sourceUrl, remoteKey, category, favorite,
+  id, title, author, narrator, fileName, source, sourceUrl, remoteKey, category, favorite, cover,
 }) => {
   if (!title) return null;
   const list = read();
@@ -127,6 +127,7 @@ export const saveAudioBook = ({
     updatedAt: Date.now(),
   });
   if (favorite !== undefined) record.favorite = favorite;
+  if (cover !== undefined) record.cover = cover;
   write([record, ...list.filter((book) => book.id !== record.id)]);
   return record;
 };

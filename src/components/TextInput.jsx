@@ -5,14 +5,18 @@ import BookSourcePicker from './BookSourcePicker';
 
 const ext = (name) => name.toLowerCase().split('.').pop();
 
-export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEditorMode }) {
+export default function TextInput({
+  text, setText, cover, onCoverFile, onCoverClear, onLoaded, onAudioLoaded, onEditorMode,
+}) {
   const input = useRef();
+  const coverInput = useRef();
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [showUrl, setShowUrl] = useState(false);
   const [url, setUrl] = useState('');
   const [sourceMode, setSourceMode] = useState('');
+  const [coverBusy, setCoverBusy] = useState(false);
 
   useEffect(() => {
     onEditorMode?.(sourceMode === 'manual');
@@ -23,7 +27,7 @@ export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEd
     if (!clean) { setStatus('Не беше открит текст.'); return; }
     const chapters = splitIntoChapters(clean);
     setText(chapters ? chapters[0].text : clean);
-    onLoaded?.({ title, text: clean, chapters, ...details });
+    onLoaded?.({ title, text: clean, chapters, ...details, cover: details.cover ?? cover });
     setStatus(`Готово · ${clean.split(/\s+/).filter(Boolean).length} думи${chapters ? ` · ${chapters.length} глави` : ''}`);
   };
 
@@ -70,10 +74,13 @@ export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEd
         setText(book.chapters[0].text);
         onLoaded?.({
           title: details.title || book.title || title,
+          author: details.author || book.author,
           text: book.chapters.map((c) => c.text).join('\n\n'),
           chapters: book.chapters,
           ...details,
+          cover: details.cover || book.cover || cover,
         });
+        if (book.cover) onCoverFile?.(book.cover, { prepared: true });
         setStatus(`Готово · ${book.chapters.length} глави`);
       } else {
         throw new Error('Поддържат се .txt, .md, .rtf, .html, .docx, .pdf и .epub файлове.');
@@ -123,6 +130,20 @@ export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEd
     if (event.dataTransfer.files[0]) load(event.dataTransfer.files[0]);
   };
 
+  const chooseCover = async (file) => {
+    if (!file || coverBusy) return;
+    setCoverBusy(true);
+    try {
+      await onCoverFile?.(file);
+      setStatus('Корицата е добавена.');
+    } catch (error) {
+      setStatus(error.message || 'Корицата не може да бъде добавена.');
+    } finally {
+      setCoverBusy(false);
+      if (coverInput.current) coverInput.current.value = '';
+    }
+  };
+
   if (sourceMode !== 'manual') {
     return (
       <section className="card text-card source-card">
@@ -170,6 +191,33 @@ export default function TextInput({ text, setText, onLoaded, onAudioLoaded, onEd
           <button onClick={fromUrl} disabled={busy}>{busy ? '…' : 'Извлечи'}</button>
         </div>
       )}
+      <div className="manual-cover-row">
+        <button
+          className="manual-cover-preview"
+          type="button"
+          onClick={() => coverInput.current?.click()}
+          aria-label={cover ? 'Смени корицата' : 'Добави корица'}
+        >
+          {cover ? <img src={cover} alt="Избрана корица" /> : <span>＋</span>}
+        </button>
+        <div>
+          <b>Корица на книгата</b>
+          <small>JPEG, PNG или WebP · изображението се намалява автоматично</small>
+        </div>
+        <button className="manual-cover-action" type="button" onClick={() => coverInput.current?.click()} disabled={coverBusy}>
+          {coverBusy ? 'Обработвам…' : cover ? 'Смени' : 'Избери'}
+        </button>
+        {cover && (
+          <button className="manual-cover-remove" type="button" onClick={onCoverClear} aria-label="Премахни корицата">×</button>
+        )}
+        <input
+          ref={coverInput}
+          hidden
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(event) => chooseCover(event.target.files[0])}
+        />
+      </div>
       <textarea aria-label="Текст за четене" value={text} onChange={(e) => setText(e.target.value)} placeholder="Постави статия, история, бележки или откъс от книга — или пусни файл тук…" />
       <div className="text-meta">
         <span>{status || 'TXT · MD · RTF · HTML · DOCX · PDF · EPUB'}</span>
