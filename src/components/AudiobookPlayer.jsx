@@ -1,4 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  BookmarkPlus,
+  ChevronDown,
+  Download,
+  Heart,
+  ListMusic,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  SkipBack,
+  SkipForward,
+  Timer,
+} from 'lucide-react';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
@@ -184,13 +198,15 @@ export default function AudiobookPlayer({
       <div className="voice-glow" aria-hidden="true">
         {Array.from({ length: 18 }).map((_, index) => <i key={index} />)}
       </div>
-      <button className="ab-close" onClick={close} aria-label="Затвори">⌄</button>
+      <button className="ab-close" onClick={close} aria-label="Затвори">
+        <ChevronDown aria-hidden="true" />
+      </button>
       <button
         className={`ab-favorite ${book.favorite ? 'on' : ''}`}
         onClick={onToggleFavorite}
         aria-label={book.favorite ? 'Премахни от любими' : 'Добави в любими'}
       >
-        ♥
+        <Heart aria-hidden="true" fill={book.favorite ? 'currentColor' : 'none'} />
       </button>
 
       {book.coverUrl
@@ -237,7 +253,7 @@ export default function AudiobookPlayer({
       />
 
       <div className="ab-current-chapter">
-        <span aria-hidden="true">☷</span>
+        <ListMusic aria-hidden="true" />
         <b>{book.chapterTitle || 'Глава 1'}</b>
       </div>
 
@@ -262,11 +278,25 @@ export default function AudiobookPlayer({
       {message && <p className="ab-message" role="status">{message}</p>}
 
       <div className="ab-transport">
-        <button className="ab-track" onClick={() => jumpTo(0)} aria-label="В началото">⏮</button>
-        <button className="ab-skip" onClick={() => skip(-30)} aria-label="Назад 30 секунди"><span>↶</span><small>30</small></button>
-        <button className="ab-main" onClick={toggle} aria-label={playing ? 'Пауза' : 'Пусни'}>{playing ? 'Ⅱ' : '▶'}</button>
-        <button className="ab-skip" onClick={() => skip(30)} aria-label="Напред 30 секунди"><span>↷</span><small>30</small></button>
-        <button className="ab-track" onClick={() => jumpTo(Math.max(0, duration - 1))} aria-label="В края">⏭</button>
+        <button className="ab-track" onClick={() => jumpTo(0)} aria-label="В началото">
+          <SkipBack aria-hidden="true" />
+        </button>
+        <button className="ab-skip" onClick={() => skip(-30)} aria-label="Назад 30 секунди">
+          <RotateCcw aria-hidden="true" />
+          <small>30</small>
+        </button>
+        <button className="ab-main" onClick={toggle} aria-label={playing ? 'Пауза' : 'Пусни'}>
+          {playing
+            ? <Pause aria-hidden="true" fill="currentColor" />
+            : <Play aria-hidden="true" fill="currentColor" />}
+        </button>
+        <button className="ab-skip" onClick={() => skip(30)} aria-label="Напред 30 секунди">
+          <RotateCw aria-hidden="true" />
+          <small>30</small>
+        </button>
+        <button className="ab-track" onClick={() => jumpTo(Math.max(0, duration - 1))} aria-label="В края">
+          <SkipForward aria-hidden="true" />
+        </button>
       </div>
 
       <div className="ab-quick-tools">
@@ -275,15 +305,15 @@ export default function AudiobookPlayer({
           <span>Скорост</span>
         </button>
         <a href={book.audioUrl} download={book.fileName}>
-          <strong>↓</strong>
+          <strong><Download aria-hidden="true" /></strong>
           <span>Офлайн</span>
         </a>
         <button className={showSleepMenu || sleepMinutes ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
-          <strong>◷</strong>
+          <strong><Timer aria-hidden="true" /></strong>
           <span>{sleepLabel || 'Таймер'}</span>
         </button>
         <button onClick={() => onBookmark?.(currentTime)}>
-          <strong>＋</strong>
+          <strong><BookmarkPlus aria-hidden="true" /></strong>
           <span>Отметка</span>
         </button>
       </div>

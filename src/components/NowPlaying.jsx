@@ -1,4 +1,22 @@
 import { useState } from 'react';
+import {
+  Bookmark,
+  BookmarkPlus,
+  ChevronDown,
+  ListMusic,
+  LoaderCircle,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  SkipBack,
+  SkipForward,
+  Square,
+  Star,
+  Timer,
+  Trash2,
+  Type,
+} from 'lucide-react';
 import Cover from './Cover';
 
 const fmt = (s) => {
@@ -56,7 +74,9 @@ export default function NowPlaying({
       <div className="voice-glow" aria-hidden="true">
         {Array.from({ length: 18 }).map((_, index) => <i key={index} />)}
       </div>
-      <button className="np-close" onClick={onClose} aria-label="Затвори">▾</button>
+      <button className="np-close" onClick={onClose} aria-label="Затвори">
+        <ChevronDown aria-hidden="true" />
+      </button>
 
       <div className="np-cover">
         <Cover book={book} size="lg" />
@@ -68,12 +88,14 @@ export default function NowPlaying({
 
       <div className="np-rating">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} className={n <= (book.rating || 0) ? 'on' : ''} onClick={() => onRate(book.id, n === book.rating ? 0 : n)} aria-label={`${n} звезди`}>★</button>
+          <button key={n} className={n <= (book.rating || 0) ? 'on' : ''} onClick={() => onRate(book.id, n === book.rating ? 0 : n)} aria-label={`${n} звезди`}>
+            <Star aria-hidden="true" fill={n <= (book.rating || 0) ? 'currentColor' : 'none'} />
+          </button>
         ))}
       </div>
 
       <div className="np-current-chapter">
-        <span aria-hidden="true">☷</span>
+        <ListMusic aria-hidden="true" />
         <b>{chapterTitle}</b>
       </div>
 
@@ -88,21 +110,27 @@ export default function NowPlaying({
 
       {message && ['paused', 'error'].includes(status) && (
         <div className="np-audio-notice" role="status" aria-live="polite">
-          <span aria-hidden="true">▶</span>
+          <Play aria-hidden="true" fill="currentColor" />
           <p>{message}</p>
         </div>
       )}
 
       <div className="np-transport">
-        <button onClick={onPrev} aria-label="Предишна част">⏮</button>
-        <button className="np-skip" onClick={() => onSkip(-30)} aria-label="Назад 30 секунди"><span>↶</span><small>30</small></button>
+        <button onClick={onPrev} aria-label="Предишна част"><SkipBack aria-hidden="true" /></button>
+        <button className="np-skip" onClick={() => onSkip(-30)} aria-label="Назад 30 секунди">
+          <RotateCcw aria-hidden="true" />
+          <small>30</small>
+        </button>
         {status === 'loading'
-          ? <button className="np-main is-loading" disabled aria-label="Гласът се подготвя">…</button>
+          ? <button className="np-main is-loading" disabled aria-label="Гласът се подготвя"><LoaderCircle aria-hidden="true" /></button>
           : status === 'speaking'
-            ? <button className="np-main" onClick={onPause} aria-label="Пауза">Ⅱ</button>
-            : <button className="np-main" onClick={onPlay} aria-label="Пусни">▶</button>}
-        <button className="np-skip" onClick={() => onSkip(30)} aria-label="Напред 30 секунди"><span>↷</span><small>30</small></button>
-        <button onClick={onNext} aria-label="Следваща част">⏭</button>
+            ? <button className="np-main" onClick={onPause} aria-label="Пауза"><Pause aria-hidden="true" fill="currentColor" /></button>
+            : <button className="np-main" onClick={onPlay} aria-label="Пусни"><Play aria-hidden="true" fill="currentColor" /></button>}
+        <button className="np-skip" onClick={() => onSkip(30)} aria-label="Напред 30 секунди">
+          <RotateCw aria-hidden="true" />
+          <small>30</small>
+        </button>
+        <button onClick={onNext} aria-label="Следваща част"><SkipForward aria-hidden="true" /></button>
       </div>
 
       <div className="np-quick-tools">
@@ -111,15 +139,15 @@ export default function NowPlaying({
           <span>Скорост</span>
         </button>
         <button className={showText ? 'on' : ''} onClick={() => setShowText((value) => !value)}>
-          <strong>Aa</strong>
+          <strong><Type aria-hidden="true" /></strong>
           <span>Текст</span>
         </button>
         <button className={showSleepMenu || sleepMinutes || chapterMode ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
-          <strong>◷</strong>
+          <strong><Timer aria-hidden="true" /></strong>
           <span>{sleepLabel}</span>
         </button>
         <button onClick={onBookmark}>
-          <strong>＋</strong>
+          <strong><BookmarkPlus aria-hidden="true" /></strong>
           <span>Отметка</span>
         </button>
       </div>
@@ -144,7 +172,7 @@ export default function NowPlaying({
         </div>
       )}
 
-      <button className="np-stop" onClick={onStop}>■ Спри четенето</button>
+      <button className="np-stop" onClick={onStop}><Square aria-hidden="true" fill="currentColor" /> Спри четенето</button>
 
       {showText && chunks?.length > 0 && (
         <div className="np-text reading-view" onClick={(e) => e.stopPropagation()}>
@@ -173,8 +201,8 @@ export default function NowPlaying({
           <h3>Отметки</h3>
           {book.bookmarks.map((mark) => (
             <div key={mark.chunkIndex} className="np-bookmark-row">
-              <button onClick={() => onJumpBookmark(mark.chunkIndex)}>🔖 {mark.label}</button>
-              <button className="np-bookmark-delete" onClick={() => onRemoveBookmark?.(mark.chunkIndex)} aria-label="Изтрий отметката">×</button>
+              <button onClick={() => onJumpBookmark(mark.chunkIndex)}><Bookmark aria-hidden="true" /> {mark.label}</button>
+              <button className="np-bookmark-delete" onClick={() => onRemoveBookmark?.(mark.chunkIndex)} aria-label="Изтрий отметката"><Trash2 aria-hidden="true" /></button>
             </div>
           ))}
         </div>
