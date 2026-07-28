@@ -31,9 +31,9 @@ const SLEEPS = [15, 30, 45, 60];
 
 export default function NowPlaying({
   book, status, position, chapters, activeChapter, rate, remainingMins,
-  chunks, activeChunk, wordFraction, sleepMinutes, sleepRemaining, chapterMode, voiceEnergy = 0, message,
+  chunks, activeChunk, wordFraction, sleepMinutes, sleepRemaining, chapterMode, motionMode, voiceEnergy = 0, message,
   onClose, onPlay, onPause, onStop, onPrev, onNext, onSkip, onSeek, onRate, onBookmark, onSpeed,
-  onSelectChapter, onJumpBookmark, onRemoveBookmark, onJumpChunk, onSleep, onChapterMode,
+  onSelectChapter, onJumpBookmark, onRemoveBookmark, onJumpChunk, onSleep, onChapterMode, onMotionMode,
 }) {
   const [showText, setShowText] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -58,8 +58,10 @@ export default function NowPlaying({
   const chunkPct = position?.chunkDuration ? (position.chunkTime / position.chunkDuration) * 100 : 0;
   const canSeek = status === 'speaking' || status === 'paused';
   const chapterTitle = chapters?.[activeChapter]?.title || `Част ${(position?.chunk || 0) + 1}`;
-  const sleepLabel = chapterMode
-    ? 'Глава'
+  const sleepLabel = motionMode
+    ? 'Без движение'
+    : chapterMode
+      ? 'Глава'
     : sleepMinutes > 0 && sleepRemaining != null
       ? `${Math.ceil(sleepRemaining / 60)} мин.`
       : 'Таймер';
@@ -142,7 +144,7 @@ export default function NowPlaying({
           <strong><Type aria-hidden="true" /></strong>
           <span>Текст</span>
         </button>
-        <button className={showSleepMenu || sleepMinutes || chapterMode ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
+        <button className={showSleepMenu || sleepMinutes || chapterMode || motionMode ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
           <strong><Timer aria-hidden="true" /></strong>
           <span>{sleepLabel}</span>
         </button>
@@ -162,13 +164,14 @@ export default function NowPlaying({
 
       {showSleepMenu && (
         <div className="np-popover np-sleep">
-          <button className={!sleepMinutes && !chapterMode ? 'on' : ''} onClick={() => { onChapterMode(false); onSleep(0); setShowSleepMenu(false); }}>Изкл.</button>
+          <button className={!sleepMinutes && !chapterMode && !motionMode ? 'on' : ''} onClick={() => { onChapterMode(false); onSleep(0); setShowSleepMenu(false); }}>Изкл.</button>
           {SLEEPS.map((m) => (
             <button key={m} className={sleepMinutes === m && !chapterMode ? 'on' : ''} onClick={() => { onChapterMode(false); onSleep(m); setShowSleepMenu(false); }}>{m} мин.</button>
           ))}
           {chapters?.length > 1 && (
             <button className={chapterMode ? 'on' : ''} onClick={() => { onSleep(0); onChapterMode(!chapterMode); setShowSleepMenu(false); }}>След глава</button>
           )}
+          <button className={motionMode ? 'on' : ''} onClick={() => { motionMode ? onSleep(0) : onMotionMode(); setShowSleepMenu(false); }}>Без движение</button>
         </div>
       )}
 

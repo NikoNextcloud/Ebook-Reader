@@ -44,6 +44,12 @@ import {
 } from './services/audiobookCache';
 import { addListening, flushListening, getStats } from './services/stats';
 import { prepareCoverImage } from './services/coverImage';
+import {
+  loadM4bChapters,
+  normalizeAudioChapters,
+} from './services/m4bChapters';
+
+const STILLNESS_MINUTES = 15;
 
 const sample = 'Понякога най-добрите истории не чакат да бъдат написани. Те вече са тук — в статиите, които пазим, в бележките, към които се връщаме, и в думите, за които рядко намираме време. Voxora превръща всеки текст в лично аудио изживяване.';
 
@@ -78,6 +84,7 @@ export default function App() {
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [sleepRemaining, setSleepRemaining] = useState(null);
   const [chapterMode, setChapterMode] = useState(false);
+  const [motionSleep, setMotionSleep] = useState(false);
   const [chapters, setChapters] = useState(null);
   const [activeChapter, setActiveChapter] = useState(0);
   const [queue, setQueue] = useState([]);
@@ -494,9 +501,13 @@ export default function App() {
     audioBookUrls.current = [streamUrl ? '' : audioUrl, generatedCoverUrl].filter(Boolean);
     const fileName = file?.name || name || '';
     const title = metadata?.title
+      || sourceBook.title
       || sourceBook.name?.replace(/\.(m4b|m4a|mp3|aac)$/i, '')
       || fileName.replace(/\.(m4b|m4a|mp3|aac)$/i, '');
     const sourceUrl = sourceBook.url || context.item?.url || '';
+    const knownAudioChapters = normalizeAudioChapters(
+      sourceBook.audioChapters || metadata?.chapters || metadata?.chapterMarkers,
+    );
     const record = saveAudioBook({
       id: context.libraryId,
       title,
@@ -509,6 +520,7 @@ export default function App() {
       category: sourceBook.category || context.item?.category || '',
       favorite: context.favorite,
       cover: typeof coverSource === 'string' ? coverSource : undefined,
+      audioChapters: knownAudioChapters,
     });
     if (record) {
       refreshBooks();
@@ -558,7 +570,25 @@ export default function App() {
       sourceUrl: record?.sourceUrl || '',
       remoteKey: record?.remoteKey || '',
       cacheNotice: context.fromCache ? 'Заредена е директно от паметта на телефона.' : '',
+      chapters: knownAudioChapters,
     });
+    if (/\.(m4b|m4a|mp4)$/i.test(fileName) && !knownAudioChapters.length) {
+      loadM4bChapters({
+        file,
+        url: audioUrl,
+        metadata,
+        savedChapters: sourceBook.audioChapters,
+      }).then((audioChapters) => {
+        if (!audioChapters.length) return;
+        if (record?.id) {
+          setBookField(record.id, { audioChapters });
+          refreshBooks();
+        }
+        setAudioBook((current) => (
+          current?.audioUrl === audioUrl ? { ...current, chapters: audioChapters } : current
+        ));
+      });
+    }
   };
   const closeAudioBook = (currentTime, duration) => {
     if (audioBook?.id) updateAudioPosition(audioBook.id, currentTime, duration);
@@ -574,6 +604,7 @@ export default function App() {
         ...current,
         favorite: !!saved.favorite,
         audioBookmarks: saved.audioBookmarks || [],
+        chapters: saved.audioChapters || current.chapters || [],
       } : current));
     }
     refreshBooks();
@@ -795,6 +826,62 @@ export default function App() {
     return () => clearInterval(id);
   }, [sleepMinutes]);
 
+  useEffect(() => {
+    if (!motionSleep) return undefined;
+    let deadline = Date.now() + STILLNESS_MINUTES * 60000;
+    let lastMagnitude = null;
+    setSleepRemaining(STILLNESS_MINUTES * 60);
+
+    const onMotion = (event) => {
+      const motion = event.accelerationIncludingGravity || event.acceleration;
+      if (!motion) return;
+      const magnitude = Math.hypot(motion.x || 0, motion.y || 0, motion.z || 0);
+      if (lastMagnitude !== null && Math.abs(magnitude - lastMagnitude) > 0.9) {
+        deadline = Date.now() + STILLNESS_MINUTES * 60000;
+      }
+      lastMagnitude = magnitude;
+    };
+    window.addEventListener('devicemotion', onMotion);
+    const timer = window.setInterval(() => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSleepRemaining(left);
+      if (!left) {
+        window.clearInterval(timer);
+        tts.current.pause();
+        ambient.current.pause();
+        setStatus((previous) => (previous === 'speaking' ? 'paused' : previous));
+        setMotionSleep(false);
+        setMessage('Четенето спря след 15 минути без движение.');
+      }
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('devicemotion', onMotion);
+    };
+  }, [motionSleep]);
+
+  const chooseMotionSleep = async () => {
+    if (!('DeviceMotionEvent' in window)) {
+      setMessage('Този браузър не поддържа разпознаване на движение.');
+      return;
+    }
+    try {
+      if (typeof window.DeviceMotionEvent.requestPermission === 'function') {
+        const permission = await window.DeviceMotionEvent.requestPermission();
+        if (permission !== 'granted') {
+          setMessage('Достъпът до движението на телефона не беше разрешен.');
+          return;
+        }
+      }
+      setSleepMinutes(0);
+      setChapterMode(false);
+      setMotionSleep(true);
+      setMessage('Таймерът ще спре след 15 минути без движение.');
+    } catch {
+      setMessage('Таймерът без движение не може да бъде активиран.');
+    }
+  };
+
   // ——— Клавишни комбинации ———
   useEffect(() => {
     const onKey = (event) => {
@@ -927,7 +1014,16 @@ export default function App() {
               {text.trim() && <p className="lang-badge">Разпознат език: <b>{langLabel(language)}</b></p>}
               <SpeedControl value={rate} onChange={setRate} />
               <MusicSelector enabled={music} setEnabled={setMusic} genre={genre} setGenre={setGenre} volume={volume} setVolume={setVolume} />
-              <SleepTimer minutes={sleepMinutes} onChange={setSleepMinutes} remaining={sleepRemaining} chapterMode={chapterMode} onChapterMode={setChapterMode} hasChapters={!!(chapters && chapters.length > 1)} />
+              <SleepTimer
+                minutes={sleepMinutes}
+                onChange={(value) => { setMotionSleep(false); setSleepMinutes(value); }}
+                remaining={sleepRemaining}
+                chapterMode={chapterMode}
+                onChapterMode={(value) => { setMotionSleep(false); setChapterMode(value); }}
+                hasChapters={!!(chapters && chapters.length > 1)}
+                motionMode={motionSleep}
+                onMotionMode={chooseMotionSleep}
+              />
               <StoragePanel
                 hasText={!!text.trim()}
                 caching={caching}
@@ -1008,6 +1104,7 @@ export default function App() {
           sleepMinutes={sleepMinutes}
           sleepRemaining={sleepRemaining}
           chapterMode={chapterMode}
+          motionMode={motionSleep}
           voiceEnergy={voiceEnergy}
           message={message}
           onClose={() => setPlayerOpen(false)}
@@ -1025,8 +1122,9 @@ export default function App() {
           onJumpBookmark={jumpBookmarkHere}
           onRemoveBookmark={(chunkIndex) => deleteBookmark(currentBook.id, chunkIndex)}
           onJumpChunk={(i) => tts.current.jumpToChunk(i)}
-          onSleep={setSleepMinutes}
-          onChapterMode={setChapterMode}
+          onSleep={(value) => { setMotionSleep(false); setSleepMinutes(value); }}
+          onChapterMode={(value) => { setMotionSleep(false); setChapterMode(value); }}
+          onMotionMode={chooseMotionSleep}
         />
       )}
       {audioBook && (

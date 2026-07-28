@@ -1,10 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   BookmarkPlus,
+  CarFront,
   ChevronDown,
   Download,
+  Gauge,
   Heart,
   ListMusic,
+  Minimize2,
+  MoonStar,
   Pause,
   Play,
   RotateCcw,
@@ -15,6 +24,7 @@ import {
 } from 'lucide-react';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+const STILLNESS_MINUTES = 15;
 
 const fmt = (seconds) => {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -62,6 +72,7 @@ export default function AudiobookPlayer({
   const lastSavedRef = useRef(book.initialTime || 0);
   const timeRef = useRef(book.initialTime || 0);
   const durationRef = useRef(0);
+  const wakeLockRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(book.initialTime || 0);
   const [duration, setDuration] = useState(0);
@@ -70,8 +81,27 @@ export default function AudiobookPlayer({
   const [message, setMessage] = useState('');
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [sleepRemaining, setSleepRemaining] = useState(0);
+  const [sleepChapterEnd, setSleepChapterEnd] = useState(0);
+  const [sleepWhenStill, setSleepWhenStill] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
+  const [showChapters, setShowChapters] = useState(false);
+  const [carMode, setCarMode] = useState(false);
+
+  const chapters = useMemo(() => {
+    const source = Array.isArray(book.chapters) ? book.chapters : [];
+    return source.map((chapter, index) => ({
+      ...chapter,
+      end: chapter.end > chapter.start
+        ? chapter.end
+        : source[index + 1]?.start || duration || 0,
+    }));
+  }, [book.chapters, duration]);
+  const activeChapterIndex = chapters.reduce(
+    (found, chapter, index) => (chapter.start <= currentTime + 0.05 ? index : found),
+    0,
+  );
+  const activeChapter = chapters[activeChapterIndex] || null;
 
   useEffect(() => {
     if (book.cacheNotice) setMessage(book.cacheNotice);
@@ -122,6 +152,52 @@ export default function AudiobookPlayer({
     return () => window.clearInterval(timer);
   }, [sleepMinutes]);
 
+  useEffect(() => {
+    if (!sleepWhenStill) return undefined;
+    let deadline = Date.now() + STILLNESS_MINUTES * 60000;
+    let lastMagnitude = null;
+    setSleepRemaining(STILLNESS_MINUTES * 60);
+
+    const onMotion = (event) => {
+      const motion = event.accelerationIncludingGravity || event.acceleration;
+      if (!motion) return;
+      const magnitude = Math.hypot(motion.x || 0, motion.y || 0, motion.z || 0);
+      if (lastMagnitude !== null && Math.abs(magnitude - lastMagnitude) > 0.9) {
+        deadline = Date.now() + STILLNESS_MINUTES * 60000;
+      }
+      lastMagnitude = magnitude;
+    };
+    window.addEventListener('devicemotion', onMotion);
+    const timer = window.setInterval(() => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSleepRemaining(left);
+      if (!left) {
+        window.clearInterval(timer);
+        audioRef.current?.pause();
+        setSleepWhenStill(false);
+        setMessage('Аудиокнигата спря след 15 минути без движение.');
+      }
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('devicemotion', onMotion);
+    };
+  }, [sleepWhenStill]);
+
+  useEffect(() => {
+    if (!carMode || !navigator.wakeLock?.request) return undefined;
+    let active = true;
+    navigator.wakeLock.request('screen').then((lock) => {
+      if (active) wakeLockRef.current = lock;
+      else lock.release?.();
+    }).catch(() => {});
+    return () => {
+      active = false;
+      wakeLockRef.current?.release?.();
+      wakeLockRef.current = null;
+    };
+  }, [carMode]);
+
   const saveProgress = () => {
     onProgress?.(timeRef.current, durationRef.current);
     lastSavedRef.current = timeRef.current;
@@ -167,6 +243,59 @@ export default function AudiobookPlayer({
     if (audioRef.current) audioRef.current.playbackRate = value;
   };
 
+  const disableSleepTimer = () => {
+    setSleepMinutes(0);
+    setSleepChapterEnd(0);
+    setSleepWhenStill(false);
+    setSleepRemaining(0);
+    setShowSleepMenu(false);
+  };
+
+  const chooseTimedSleep = (minutes) => {
+    setSleepChapterEnd(0);
+    setSleepWhenStill(false);
+    setSleepMinutes(minutes);
+    if (!minutes) setSleepRemaining(0);
+    setShowSleepMenu(false);
+  };
+
+  const chooseChapterSleep = () => {
+    const chapterEnd = activeChapter?.end || 0;
+    if (!chapterEnd || chapterEnd <= currentTime) {
+      setMessage('Текущата глава няма валиден краен маркер.');
+      return;
+    }
+    setSleepMinutes(0);
+    setSleepWhenStill(false);
+    setSleepChapterEnd(chapterEnd);
+    setSleepRemaining(0);
+    setShowSleepMenu(false);
+    setMessage(`Таймерът ще спре в края на „${activeChapter.title}“.`);
+  };
+
+  const chooseStillnessSleep = async () => {
+    if (!('DeviceMotionEvent' in window)) {
+      setMessage('Този браузър не поддържа разпознаване на движение.');
+      return;
+    }
+    try {
+      if (typeof window.DeviceMotionEvent.requestPermission === 'function') {
+        const permission = await window.DeviceMotionEvent.requestPermission();
+        if (permission !== 'granted') {
+          setMessage('Достъпът до движението на телефона не беше разрешен.');
+          return;
+        }
+      }
+      setSleepMinutes(0);
+      setSleepChapterEnd(0);
+      setSleepWhenStill(true);
+      setShowSleepMenu(false);
+      setMessage('Таймерът ще спре след 15 минути без движение.');
+    } catch {
+      setMessage('Таймерът без движение не може да бъде активиран.');
+    }
+  };
+
   const jumpToBookmark = (time) => {
     if (!audioRef.current) return;
     audioRef.current.currentTime = time;
@@ -183,15 +312,48 @@ export default function AudiobookPlayer({
     setCurrentTime(audio.currentTime);
   };
 
+  const previousChapter = () => {
+    if (!chapters.length) {
+      jumpTo(0);
+      return;
+    }
+    const targetIndex = currentTime - activeChapter.start > 4
+      ? activeChapterIndex
+      : Math.max(0, activeChapterIndex - 1);
+    jumpTo(chapters[targetIndex].start);
+  };
+
+  const nextChapter = () => {
+    if (!chapters.length) {
+      jumpTo(Math.max(0, duration - 1));
+      return;
+    }
+    if (activeChapterIndex >= chapters.length - 1) {
+      jumpTo(Math.max(0, duration - 1));
+      return;
+    }
+    jumpTo(chapters[activeChapterIndex + 1].start);
+  };
+
+  const cycleSpeed = () => {
+    const currentIndex = SPEEDS.indexOf(rate);
+    changeRate(SPEEDS[(currentIndex + 1) % SPEEDS.length]);
+  };
+
   const close = () => {
     saveProgress();
     audioRef.current?.pause();
     onClose?.(timeRef.current, durationRef.current);
   };
 
-  const sleepLabel = sleepRemaining
-    ? `${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, '0')}`
-    : '';
+  const sleepLabel = sleepChapterEnd
+    ? 'До глава'
+    : sleepWhenStill
+      ? `${Math.ceil(sleepRemaining / 60)} мин.`
+      : sleepRemaining
+        ? `${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, '0')}`
+        : '';
+  const sleepActive = !!(sleepMinutes || sleepChapterEnd || sleepWhenStill);
 
   return (
     <div className={`audiobook-player ${playing ? 'is-speaking' : ''}`} style={{ '--voice-energy': energy }}>
@@ -241,6 +403,11 @@ export default function AudiobookPlayer({
           timeRef.current = time;
           durationRef.current = total;
           setCurrentTime(time);
+          if (sleepChapterEnd && time >= sleepChapterEnd - 0.2) {
+            event.currentTarget.pause();
+            setSleepChapterEnd(0);
+            setMessage('Аудиокнигата спря в края на главата.');
+          }
           if (Math.abs(time - lastSavedRef.current) >= 5) saveProgress();
         }}
         onPlay={() => setPlaying(true)}
@@ -252,10 +419,16 @@ export default function AudiobookPlayer({
         }}
       />
 
-      <div className="ab-current-chapter">
+      <button
+        className="ab-current-chapter"
+        onClick={() => setShowChapters((value) => !value)}
+        aria-expanded={showChapters}
+        disabled={!chapters.length}
+      >
         <ListMusic aria-hidden="true" />
-        <b>{book.chapterTitle || 'Глава 1'}</b>
-      </div>
+        <b>{activeChapter?.title || book.chapterTitle || 'Глава 1'}</b>
+        {chapters.length > 0 && <small>{activeChapterIndex + 1}/{chapters.length}</small>}
+      </button>
 
       <div className="ab-progress">
         <input
@@ -278,7 +451,7 @@ export default function AudiobookPlayer({
       {message && <p className="ab-message" role="status">{message}</p>}
 
       <div className="ab-transport">
-        <button className="ab-track" onClick={() => jumpTo(0)} aria-label="В началото">
+        <button className="ab-track" onClick={previousChapter} aria-label={chapters.length ? 'Предишна глава' : 'В началото'}>
           <SkipBack aria-hidden="true" />
         </button>
         <button className="ab-skip" onClick={() => skip(-30)} aria-label="Назад 30 секунди">
@@ -294,12 +467,12 @@ export default function AudiobookPlayer({
           <RotateCw aria-hidden="true" />
           <small>30</small>
         </button>
-        <button className="ab-track" onClick={() => jumpTo(Math.max(0, duration - 1))} aria-label="В края">
+        <button className="ab-track" onClick={nextChapter} aria-label={chapters.length ? 'Следваща глава' : 'В края'}>
           <SkipForward aria-hidden="true" />
         </button>
       </div>
 
-      <div className="ab-quick-tools">
+      <div className="ab-quick-tools has-car-mode">
         <button className={showSpeedMenu ? 'on' : ''} onClick={() => { setShowSpeedMenu((value) => !value); setShowSleepMenu(false); }}>
           <strong>{rate}×</strong>
           <span>Скорост</span>
@@ -308,7 +481,11 @@ export default function AudiobookPlayer({
           <strong><Download aria-hidden="true" /></strong>
           <span>Офлайн</span>
         </a>
-        <button className={showSleepMenu || sleepMinutes ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
+        <button onClick={() => { setCarMode(true); setShowSleepMenu(false); setShowSpeedMenu(false); }}>
+          <strong><CarFront aria-hidden="true" /></strong>
+          <span>Авто режим</span>
+        </button>
+        <button className={showSleepMenu || sleepActive ? 'on' : ''} onClick={() => { setShowSleepMenu((value) => !value); setShowSpeedMenu(false); }}>
           <strong><Timer aria-hidden="true" /></strong>
           <span>{sleepLabel || 'Таймер'}</span>
         </button>
@@ -327,14 +504,45 @@ export default function AudiobookPlayer({
       )}
 
       {showSleepMenu && (
-        <div className="ab-popover ab-tools">
+        <div className="ab-popover ab-tools smart-sleep-options">
           {[0, 15, 30, 45, 60].map((minutes) => (
             <button
               key={minutes}
-              className={sleepMinutes === minutes ? 'on' : ''}
-              onClick={() => { setSleepMinutes(minutes); setShowSleepMenu(false); }}
+              className={sleepMinutes === minutes && !sleepChapterEnd && !sleepWhenStill ? 'on' : ''}
+              onClick={() => chooseTimedSleep(minutes)}
             >
               {minutes ? `${minutes} мин.` : 'Изкл.'}
+            </button>
+          ))}
+          {chapters.length > 0 && (
+            <button className={sleepChapterEnd ? 'on' : ''} onClick={chooseChapterSleep}>
+              Край на глава
+            </button>
+          )}
+          <button className={sleepWhenStill ? 'on' : ''} onClick={chooseStillnessSleep}>
+            <MoonStar aria-hidden="true" /> Без движение
+          </button>
+        </div>
+      )}
+
+      {showChapters && chapters.length > 0 && (
+        <div className="ab-chapters">
+          <div className="ab-chapters-head">
+            <span>ГЛАВИ</span>
+            <small>{chapters.length}</small>
+          </div>
+          {chapters.map((chapter, index) => (
+            <button
+              key={`${chapter.start}-${chapter.title}`}
+              className={index === activeChapterIndex ? 'active' : ''}
+              onClick={() => {
+                jumpTo(chapter.start);
+                setShowChapters(false);
+              }}
+            >
+              <span>{index + 1}</span>
+              <b>{chapter.title}</b>
+              <small>{fmt(Math.max(0, chapter.end - chapter.start))}</small>
             </button>
           ))}
         </div>
@@ -349,6 +557,77 @@ export default function AudiobookPlayer({
               <button onClick={() => onRemoveBookmark?.(mark.time)} aria-label="Изтрий отметката">×</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {carMode && (
+        <div className="car-mode-player">
+          <header>
+            <div>
+              <CarFront aria-hidden="true" />
+              <span>VOXORA AUTO</span>
+            </div>
+            <button onClick={() => { setCarMode(false); setShowSleepMenu(false); }} aria-label="Изход от автомобилен режим">
+              <Minimize2 aria-hidden="true" />
+              Изход
+            </button>
+          </header>
+
+          <div className="car-book">
+            {book.coverUrl && <img src={book.coverUrl} alt="" />}
+            <div>
+              <h2>{book.title}</h2>
+              <p>{activeChapter?.title || book.chapterTitle || 'Глава 1'}</p>
+            </div>
+          </div>
+
+          <div className="car-progress">
+            <i style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
+          </div>
+          <div className="car-time">
+            <span>{fmt(currentTime)}</span>
+            <span>-{fmt(Math.max(0, duration - currentTime))}</span>
+          </div>
+
+          <div className="car-main-controls">
+            <button onClick={() => skip(-30)} aria-label="Назад 30 секунди">
+              <RotateCcw aria-hidden="true" />
+              <small>30</small>
+            </button>
+            <button className="car-play" onClick={toggle} aria-label={playing ? 'Пауза' : 'Пусни'}>
+              {playing
+                ? <Pause aria-hidden="true" fill="currentColor" />
+                : <Play aria-hidden="true" fill="currentColor" />}
+            </button>
+            <button onClick={() => skip(30)} aria-label="Напред 30 секунди">
+              <RotateCw aria-hidden="true" />
+              <small>30</small>
+            </button>
+          </div>
+
+          <div className="car-chapter-controls">
+            <button onClick={previousChapter}><SkipBack aria-hidden="true" /> Предишна</button>
+            <button onClick={nextChapter}>Следваща <SkipForward aria-hidden="true" /></button>
+          </div>
+
+          <div className="car-tools">
+            <button onClick={cycleSpeed}><Gauge aria-hidden="true" /><span>{rate}×</span></button>
+            <button className={sleepActive ? 'on' : ''} onClick={() => setShowSleepMenu((value) => !value)}>
+              <Timer aria-hidden="true" /><span>{sleepLabel || 'Таймер'}</span>
+            </button>
+            <button onClick={() => onBookmark?.(currentTime)}><BookmarkPlus aria-hidden="true" /><span>Отметка</span></button>
+          </div>
+
+          {showSleepMenu && (
+            <div className="car-sleep-options">
+              <button onClick={disableSleepTimer}>Изкл.</button>
+              {[15, 30, 60].map((minutes) => (
+                <button key={minutes} onClick={() => chooseTimedSleep(minutes)}>{minutes} мин.</button>
+              ))}
+              {chapters.length > 0 && <button onClick={chooseChapterSleep}>Край на глава</button>}
+              <button onClick={chooseStillnessSleep}>Без движение</button>
+            </div>
+          )}
         </div>
       )}
 

@@ -1,7 +1,10 @@
 // Таймер за сън — спира след избрания брой минути или в края на главата.
 const options = [0, 15, 30, 45, 60];
 
-export default function SleepTimer({ minutes, onChange, remaining, chapterMode, onChapterMode, hasChapters }) {
+export default function SleepTimer({
+  minutes, onChange, remaining, chapterMode, onChapterMode, hasChapters,
+  motionMode, onMotionMode,
+}) {
   return (
     <section className="control-section sleep-timer">
       <div className="inline-title">
@@ -9,7 +12,7 @@ export default function SleepTimer({ minutes, onChange, remaining, chapterMode, 
           <span className="eyebrow">05 · ТАЙМЕР ЗА СЪН</span>
           <h3>Спри след време</h3>
         </div>
-        {minutes > 0 && remaining != null && (
+        {(minutes > 0 || motionMode) && remaining != null && (
           <strong className="speed-value">{Math.ceil(remaining / 60)} мин.</strong>
         )}
       </div>
@@ -17,7 +20,7 @@ export default function SleepTimer({ minutes, onChange, remaining, chapterMode, 
         {options.map((value) => (
           <button
             key={value}
-            className={minutes === value && !chapterMode ? 'active' : ''}
+            className={minutes === value && !chapterMode && !motionMode ? 'active' : ''}
             onClick={() => { onChapterMode(false); onChange(value); }}
           >
             {value === 0 ? 'Изкл.' : `${value} мин.`}
@@ -28,6 +31,9 @@ export default function SleepTimer({ minutes, onChange, remaining, chapterMode, 
             Край на главата
           </button>
         )}
+        <button className={motionMode ? 'active' : ''} onClick={() => (motionMode ? onChange(0) : onMotionMode())}>
+          Без движение
+        </button>
       </div>
     </section>
   );
