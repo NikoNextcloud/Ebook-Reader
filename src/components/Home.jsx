@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { HardDrive, Plus } from 'lucide-react';
 import BookCard from './BookCard';
 import ContinueCard from './ContinueCard';
 import { formatDuration } from '../services/cover';
@@ -22,7 +23,8 @@ const remainingOf = (book) => {
 const inProgress = (book) => (book.chunkIndex > 0 || book.audioPosition > 0) && !book.finished;
 
 export default function Home({
-  books, stats, queue, onOpen, onNew, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove, onCoverChange,
+  books, stats, queue, onOpen, onNew, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove,
+  onCoverChange, onOpenStorage,
 }) {
   const [query, setQuery] = useState('');
 
@@ -62,7 +64,16 @@ export default function Home({
           <span className="eyebrow coral">ТВОЯТА БИБЛИОТЕКА</span>
           <h1>Слушай на своя ритъм.</h1>
         </div>
-        <button className="new-book" onClick={onNew}>＋ Нов текст / книга</button>
+        <div className="home-actions">
+          <button className="home-storage" onClick={onOpenStorage}>
+            <HardDrive aria-hidden="true" />
+            Памет
+          </button>
+          <button className="new-book" onClick={onNew}>
+            <Plus aria-hidden="true" />
+            Нов текст / книга
+          </button>
+        </div>
       </section>
 
       {!searching && continueBook && (
@@ -100,7 +111,7 @@ export default function Home({
       {books.length === 0 ? (
         <div className="empty-lib">
           <p>Още няма книги. Добави текст, статия или качи файл, за да започнеш.</p>
-          <button className="new-book" onClick={onNew}>＋ Добави първата си книга</button>
+          <button className="new-book" onClick={onNew}><Plus aria-hidden="true" /> Добави първата си книга</button>
         </div>
       ) : searching && !filtered.length ? (
         <div className="empty-lib"><p>Нищо не съвпада с „{query}“.</p></div>

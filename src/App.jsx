@@ -9,6 +9,7 @@ import SleepTimer from './components/SleepTimer';
 import Library from './components/Library';
 import ChapterSelector from './components/ChapterSelector';
 import StoragePanel from './components/StoragePanel';
+import StorageManager from './components/StorageManager';
 import Home from './components/Home';
 import NowPlaying from './components/NowPlaying';
 import AudioPlayer from './components/AudioPlayer';
@@ -85,6 +86,7 @@ export default function App() {
   const [audioBook, setAudioBook] = useState(null);
   const [editorReady, setEditorReady] = useState(false);
   const [draftCover, setDraftCover] = useState('');
+  const [storageOpen, setStorageOpen] = useState(false);
 
   const ambient = useRef(new AmbientAudio());
   const geminiTts = useRef(new GeminiTTS());
@@ -744,9 +746,17 @@ export default function App() {
 
   const clearCache = async () => {
     await idbClear();
-    books.filter((book) => book.audioCached).forEach((book) => setBookField(book.id, { audioCached: false }));
+    books
+      .filter((book) => book.audioCached || book.cachedOffline)
+      .forEach((book) => setBookField(book.id, { audioCached: false, cachedOffline: false }));
     refreshBooks();
     setMessage('Кешираният звук и запазените Storytel аудиофайлове са изтрити.');
+  };
+  const removeAudioCacheEntry = async (entry, book) => {
+    await removeCachedAudioBook({ cacheKey: entry.key });
+    if (book?.id) setBookField(book.id, { audioCached: false });
+    refreshBooks();
+    setMessage(`Офлайн файлът на „${book?.title || entry.title || entry.name}“ е изтрит. Прогресът и отметките са запазени.`);
   };
   const exportLib = () => {
     const blob = new Blob([exportLibrary()], { type: 'application/json' });
@@ -859,6 +869,7 @@ export default function App() {
           onQueue={enqueue}
           onRemove={deleteBook}
           onCoverChange={changeBookCover}
+          onOpenStorage={() => setStorageOpen(true)}
         />
       ) : (
         <main>
@@ -917,7 +928,15 @@ export default function App() {
               <SpeedControl value={rate} onChange={setRate} />
               <MusicSelector enabled={music} setEnabled={setMusic} genre={genre} setGenre={setGenre} volume={volume} setVolume={setVolume} />
               <SleepTimer minutes={sleepMinutes} onChange={setSleepMinutes} remaining={sleepRemaining} chapterMode={chapterMode} onChapterMode={setChapterMode} hasChapters={!!(chapters && chapters.length > 1)} />
-              <StoragePanel hasText={!!text.trim()} caching={caching} cacheProgress={cacheProgress} onCacheOffline={cacheOffline} onClearCache={clearCache} onExport={exportLib} onImport={importLib} />
+              <StoragePanel
+                hasText={!!text.trim()}
+                caching={caching}
+                cacheProgress={cacheProgress}
+                onCacheOffline={cacheOffline}
+                onManageStorage={() => setStorageOpen(true)}
+                onExport={exportLib}
+                onImport={importLib}
+              />
               {heavy && (
                 <p className="quota-note">
                   ⚠ Дълъг текст: ~{chunks.length} AI заявки (~{mins} мин. звук).
@@ -1023,6 +1042,15 @@ export default function App() {
             refreshAudioBook(audioBook.id);
           }}
           onListening={(seconds) => addListening(seconds)}
+        />
+      )}
+      {storageOpen && (
+        <StorageManager
+          books={books}
+          onClose={() => setStorageOpen(false)}
+          onClearAll={clearCache}
+          onRemoveCachedBook={removeAudioCacheEntry}
+          onStatus={setMessage}
         />
       )}
       {view === 'create' && <footer>VOXORA · {ttsProvider === 'elevenlabs' ? 'ElevenLabs Multilingual v2' : 'Gemini AI гласове'}</footer>}

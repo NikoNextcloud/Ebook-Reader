@@ -1,4 +1,9 @@
-import { idbDelete, idbGet, idbSet } from './idbCache';
+import {
+  idbDelete,
+  idbEntries,
+  idbGet,
+  idbSet,
+} from './idbCache';
 
 const PREFIX = 'remote-audiobook|';
 
@@ -32,6 +37,8 @@ export const cacheAudioBook = async ({
     type: file.type || 'audio/mp4',
     metadata,
     cover,
+    remoteKey: remoteKey || '',
+    sourceUrl: sourceUrl || '',
     savedAt: Date.now(),
   });
 };
@@ -52,7 +59,29 @@ export const loadCachedAudioBook = async ({ remoteKey, sourceUrl }) => {
   };
 };
 
-export const removeCachedAudioBook = async ({ remoteKey, sourceUrl }) => {
-  const key = audioBookCacheKey(remoteKey, sourceUrl);
+export const listCachedAudioBooks = async () => {
+  const entries = await idbEntries(PREFIX);
+  return entries
+    .filter(({ value }) => value?.blob)
+    .map(({ key, value }) => {
+      const identity = key.slice(PREFIX.length);
+      const looksLikeUrl = /^https?:\/\//i.test(identity);
+      return {
+        key,
+        remoteKey: value.remoteKey || (looksLikeUrl ? '' : identity),
+        sourceUrl: value.sourceUrl || (looksLikeUrl ? identity : ''),
+        name: value.name || 'audiobook.m4b',
+        size: Number(value.blob.size) || 0,
+        savedAt: value.savedAt || 0,
+        title: value.metadata?.title || '',
+      };
+    })
+    .sort((a, b) => b.savedAt - a.savedAt);
+};
+
+export const removeCachedAudioBook = async ({ remoteKey, sourceUrl, cacheKey }) => {
+  const key = cacheKey?.startsWith(PREFIX)
+    ? cacheKey
+    : audioBookCacheKey(remoteKey, sourceUrl);
   if (key) await idbDelete(key);
 };

@@ -3,14 +3,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const idbGet = vi.fn();
 const idbSet = vi.fn();
 const idbDelete = vi.fn();
+const idbEntries = vi.fn();
 
-vi.mock('./idbCache', () => ({ idbDelete, idbGet, idbSet }));
+vi.mock('./idbCache', () => ({
+  idbDelete,
+  idbEntries,
+  idbGet,
+  idbSet,
+}));
 
 describe('audiobook cache', () => {
   beforeEach(() => {
     idbGet.mockReset();
     idbSet.mockReset();
     idbDelete.mockReset();
+    idbEntries.mockReset();
   });
 
   it('stores an audio file under its stable remote key', async () => {
@@ -48,5 +55,29 @@ describe('audiobook cache', () => {
     const { removeCachedAudioBook } = await import('./audiobookCache');
     await removeCachedAudioBook({ remoteKey: 'mega:book-1' });
     expect(idbDelete).toHaveBeenCalledWith('remote-audiobook|mega:book-1');
+  });
+
+  it('lists cached audiobooks with their exact file size', async () => {
+    const { listCachedAudioBooks } = await import('./audiobookCache');
+    idbEntries.mockResolvedValue([{
+      key: 'remote-audiobook|mega:book-1',
+      value: {
+        blob: new Blob(['123456']),
+        name: 'book.m4b',
+        metadata: { title: 'Book' },
+        savedAt: 25,
+      },
+    }]);
+
+    await expect(listCachedAudioBooks()).resolves.toEqual([
+      expect.objectContaining({
+        key: 'remote-audiobook|mega:book-1',
+        remoteKey: 'mega:book-1',
+        name: 'book.m4b',
+        size: 6,
+        title: 'Book',
+      }),
+    ]);
+    expect(idbEntries).toHaveBeenCalledWith('remote-audiobook|');
   });
 });

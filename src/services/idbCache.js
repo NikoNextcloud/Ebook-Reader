@@ -60,6 +60,31 @@ export const idbDelete = async (key) => {
   }
 };
 
+export const idbEntries = async (prefix = '') => {
+  try {
+    const db = await openDb();
+    return await new Promise((resolve) => {
+      const entries = [];
+      const transaction = db.transaction(STORE, 'readonly');
+      const request = transaction.objectStore(STORE).openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        const key = String(cursor.key);
+        if (!prefix || key.startsWith(prefix)) {
+          entries.push({ key, value: cursor.value });
+        }
+        cursor.continue();
+      };
+      transaction.oncomplete = () => resolve(entries);
+      transaction.onerror = () => resolve([]);
+      transaction.onabort = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+};
+
 export const idbClear = async () => {
   try {
     await tx('readwrite', (store) => store.clear());
