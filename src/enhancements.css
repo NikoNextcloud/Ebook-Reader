@@ -2120,7 +2120,7 @@ header.minimal{justify-content:space-between;gap:16px}
   gap:14px;
   overflow-x:auto;
   padding:2px 2px 8px;
-  scroll-behavior:smooth;
+  scroll-behavior:auto;
   scroll-snap-type:none;
   scrollbar-width:none;
   -ms-overflow-style:none;
