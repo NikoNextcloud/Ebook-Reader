@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  metadataFromIlst,
   normalizeAudioChapters,
   parseNeroChapterBox,
 } from './m4bChapters';
+
+const fourCCNumber = (value) => [...value].reduce(
+  (number, character) => (number * 256 + character.codePointAt(0)) >>> 0,
+  0,
+);
 
 describe('M4B chapters', () => {
   it('normalizes sidecar chapters and fills their end times', () => {
@@ -40,5 +46,32 @@ describe('M4B chapters', () => {
       { title: 'Начало', start: 0, end: 30 },
       { title: 'Глава 2', start: 30, end: 60 },
     ]);
+  });
+
+  it('extracts embedded book metadata and artwork', () => {
+    const result = metadataFromIlst({
+      list: {
+        [fourCCNumber('©nam')]: { value: 'Книга' },
+        [fourCCNumber('©ART')]: { value: 'Автор' },
+        [fourCCNumber('©gen')]: { value: 'Роман' },
+        [fourCCNumber('covr')]: {
+          valueType: 14,
+          raw: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+        },
+      },
+    }, {
+      duration: 6000,
+      timescale: 1000,
+      audioTracks: [{ codec: 'mp4a.40.2' }],
+    });
+
+    expect(result.metadata).toMatchObject({
+      title: 'Книга',
+      authors: ['Автор'],
+      genre: 'Роман',
+      duration: 6,
+      codec: 'mp4a.40.2',
+    });
+    expect(result.cover.type).toBe('image/png');
   });
 });

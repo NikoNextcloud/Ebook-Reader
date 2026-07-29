@@ -59,6 +59,11 @@ describe('library', () => {
       favorite: true,
       cover: 'data:image/jpeg;base64,cover',
       audioChapters: [{ title: 'Глава 1', start: 0, end: 60 }],
+      series: 'Поредица',
+      genre: 'Роман',
+      transcriptCues: [{ start: 0, end: 5, text: 'Начало' }],
+      audioProfile: 'clear',
+      offlineChapters: [0],
     });
     updateAudioPosition(rec.id, 90, 300);
     addAudioBookmark(rec.id, 75, 'Любим момент');
@@ -69,6 +74,13 @@ describe('library', () => {
     expect(saved.favorite).toBe(true);
     expect(saved.cover).toBe('data:image/jpeg;base64,cover');
     expect(saved.audioChapters).toEqual([{ title: 'Глава 1', start: 0, end: 60 }]);
+    expect(saved).toMatchObject({
+      series: 'Поредица',
+      genre: 'Роман',
+      audioProfile: 'clear',
+      offlineChapters: [0],
+    });
+    expect(saved.transcriptCues).toHaveLength(1);
     expect(saved.audioBookmarks).toHaveLength(1);
 
     removeAudioBookmark(rec.id, 75);

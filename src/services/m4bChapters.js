@@ -79,6 +79,51 @@ const chapterTitleFromSample = (data, index) => {
     || `Глава ${index + 1}`;
 };
 
+const fourCC = (value) => String.fromCodePoint(
+  (value >>> 24) & 255,
+  (value >>> 16) & 255,
+  (value >>> 8) & 255,
+  value & 255,
+);
+
+const metadataValue = (list, names) => {
+  for (const [key, box] of Object.entries(list || {})) {
+    if (names.includes(fourCC(Number(key))) && typeof box?.value === 'string') {
+      const value = box.value.trim();
+      if (value) return value;
+    }
+  }
+  return '';
+};
+
+export const metadataFromIlst = (ilst, info = {}) => {
+  const list = ilst?.list || {};
+  const author = metadataValue(list, ['aART', '©ART', '©wrt']);
+  const narrator = metadataValue(list, ['©nrt', 'narr']);
+  const coverBox = Object.entries(list)
+    .find(([key]) => fourCC(Number(key)) === 'covr')?.[1];
+  const coverBytes = coverBox?.raw instanceof Uint8Array ? coverBox.raw : null;
+  const coverType = coverBox?.valueType === 14 || coverBytes?.[0] === 0x89
+    ? 'image/png'
+    : 'image/jpeg';
+
+  return {
+    metadata: {
+      title: metadataValue(list, ['©nam']),
+      authors: author ? [author] : [],
+      narrators: narrator ? [narrator] : [],
+      series: metadataValue(list, ['©alb']),
+      genre: metadataValue(list, ['©gen']),
+      year: metadataValue(list, ['©day']),
+      description: metadataValue(list, ['desc', 'ldes', '©cmt']),
+      copyright: metadataValue(list, ['cprt', '©cpy']),
+      duration: info.duration && info.timescale ? info.duration / info.timescale : 0,
+      codec: info.audioTracks?.[0]?.codec || '',
+    },
+    cover: coverBytes?.length ? new Blob([coverBytes], { type: coverType }) : null,
+  };
+};
+
 const blobSource = (blob) => ({
   size: blob.size,
   read: (start, end) => blob.slice(start, end).arrayBuffer(),
@@ -115,12 +160,16 @@ const parseSource = async (source) => {
   let extractedSamples = [];
 
   file.onError = () => {
-    result = [];
+    result = { chapters: [], metadata: {}, cover: null };
   };
   file.onReady = (info) => {
+    const embedded = metadataFromIlst(file.moov?.udta?.meta?.ilst, info);
+    const finish = (chapters) => {
+      result = { chapters, ...embedded };
+    };
     const nero = file.moov?.udta?.chpl?.data;
     if (nero) {
-      result = parseNeroChapterBox(nero, info.duration / info.timescale);
+      finish(parseNeroChapterBox(nero, info.duration / info.timescale));
       return;
     }
 
@@ -130,7 +179,7 @@ const parseSource = async (source) => {
     const chapterTrackId = chapterReference?.track_ids?.[0];
     const chapterTrack = info.tracks?.find((track) => track.id === chapterTrackId);
     if (!chapterTrackId || !chapterTrack) {
-      result = [];
+      finish([]);
       return;
     }
 
@@ -139,11 +188,11 @@ const parseSource = async (source) => {
       if (trackId !== chapterTrackId) return;
       extractedSamples = extractedSamples.concat(samples);
       if (!expectedSamples || extractedSamples.length >= expectedSamples) {
-        result = normalizeAudioChapters(extractedSamples.map((sample, index) => ({
+        finish(normalizeAudioChapters(extractedSamples.map((sample, index) => ({
           title: chapterTitleFromSample(sample.data, index),
           start: sample.cts / sample.timescale,
           end: (sample.cts + sample.duration) / sample.timescale,
-        })), info.duration / info.timescale);
+        })), info.duration / info.timescale));
       }
     };
     file.setExtractionOptions(chapterTrackId, null, {
@@ -170,10 +219,17 @@ const parseSource = async (source) => {
       : end;
   }
   file.flush();
-  return result || [];
+  return result || { chapters: [], metadata: {}, cover: null };
 };
 
-export const loadM4bChapters = async ({
+const mergeMetadata = (embedded = {}, provided = {}) => ({
+  ...embedded,
+  ...provided,
+  authors: provided.authors?.length ? provided.authors : embedded.authors || [],
+  narrators: provided.narrators?.length ? provided.narrators : embedded.narrators || [],
+});
+
+export const loadM4bDetails = async ({
   file,
   url,
   metadata,
@@ -184,11 +240,19 @@ export const loadM4bChapters = async ({
     savedChapters?.length ? savedChapters : metadata?.chapters || metadata?.chapterMarkers,
     duration,
   );
-  if (known.length) return known;
   try {
     const source = file instanceof Blob ? blobSource(file) : await remoteSource(url);
-    return await parseSource(source);
+    const embedded = await parseSource(source);
+    return {
+      chapters: known.length ? known : embedded.chapters,
+      metadata: mergeMetadata(embedded.metadata, metadata),
+      cover: embedded.cover,
+    };
   } catch {
-    return [];
+    return { chapters: known, metadata: metadata || {}, cover: null };
   }
 };
+
+export const loadM4bChapters = async (options) => (
+  await loadM4bDetails(options)
+).chapters;

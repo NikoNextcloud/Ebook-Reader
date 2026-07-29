@@ -80,4 +80,25 @@ describe('audiobook cache', () => {
     ]);
     expect(idbEntries).toHaveBeenCalledWith('remote-audiobook|');
   });
+
+  it('removes the oldest unprotected files above the configured limit', async () => {
+    const { pruneAudioBookCache } = await import('./audiobookCache');
+    idbEntries.mockResolvedValue([
+      {
+        key: 'remote-audiobook|old',
+        value: { blob: new Blob(['12345']), savedAt: 1, remoteKey: 'old' },
+      },
+      {
+        key: 'remote-audiobook|current',
+        value: { blob: new Blob(['12345']), savedAt: 2, remoteKey: 'current' },
+      },
+    ]);
+
+    const removed = await pruneAudioBookCache({
+      protectedKeys: ['remote-audiobook|current'],
+      maxBytes: 5,
+    });
+    expect(removed.map((entry) => entry.remoteKey)).toEqual(['old']);
+    expect(idbDelete).toHaveBeenCalledWith('remote-audiobook|old');
+  });
 });

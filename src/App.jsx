@@ -38,14 +38,17 @@ import { loadSettings, saveSettings } from './services/settings';
 import { detectLanguage, langLabel } from './services/lang';
 import { idbClear } from './services/idbCache';
 import {
+  audioBookCacheKey,
   cacheAudioBook,
+  loadOfflineSettings,
   loadCachedAudioBook,
+  pruneAudioBookCache,
   removeCachedAudioBook,
 } from './services/audiobookCache';
 import { addListening, flushListening, getStats } from './services/stats';
 import { prepareCoverImage } from './services/coverImage';
 import {
-  loadM4bChapters,
+  loadM4bDetails,
   normalizeAudioChapters,
 } from './services/m4bChapters';
 
@@ -508,6 +511,11 @@ export default function App() {
     const knownAudioChapters = normalizeAudioChapters(
       sourceBook.audioChapters || metadata?.chapters || metadata?.chapterMarkers,
     );
+    const transcriptText = sourceBook.transcriptText
+      || metadata?.transcriptText
+      || metadata?.transcript
+      || '';
+    const transcriptCues = sourceBook.transcriptCues || metadata?.transcriptCues || [];
     const record = saveAudioBook({
       id: context.libraryId,
       title,
@@ -521,8 +529,21 @@ export default function App() {
       favorite: context.favorite,
       cover: typeof coverSource === 'string' ? coverSource : undefined,
       audioChapters: knownAudioChapters,
+      series: metadata?.series,
+      genre: metadata?.genre,
+      year: metadata?.year,
+      description: metadata?.description,
+      codec: metadata?.codec,
+      transcriptText,
+      transcriptCues,
     });
+    const stableRemoteKey = record?.remoteKey
+      || (record?.source === 'local' && record?.id ? `local:${record.id}` : '');
     if (record) {
+      if (stableRemoteKey && stableRemoteKey !== record.remoteKey) {
+        setBookField(record.id, { remoteKey: stableRemoteKey });
+        record.remoteKey = stableRemoteKey;
+      }
       refreshBooks();
       if (coverSource instanceof Blob && !sourceBook.cover) {
         prepareCoverImage(coverSource).then((storedCover) => {
@@ -535,9 +556,9 @@ export default function App() {
           // Временната Blob корица остава видима в текущата сесия.
         });
       }
-      if (file && !context.fromCache && (record.source === 'mega' || context.source === 'mega')) {
+      if (file && !context.fromCache && ['mega', 'local'].includes(record.source || context.source)) {
         cacheAudioBook({
-          remoteKey: record.remoteKey,
+          remoteKey: stableRemoteKey,
           sourceUrl: record.sourceUrl,
           file,
           metadata,
@@ -568,24 +589,71 @@ export default function App() {
       initialTime: record?.audioPosition || 0,
       audioBookmarks: record?.audioBookmarks || [],
       sourceUrl: record?.sourceUrl || '',
-      remoteKey: record?.remoteKey || '',
+      remoteKey: stableRemoteKey || record?.remoteKey || '',
       cacheNotice: context.fromCache ? 'Заредена е директно от паметта на телефона.' : '',
       chapters: knownAudioChapters,
+      transcriptText: record?.transcriptText || transcriptText,
+      transcriptCues: record?.transcriptCues || transcriptCues,
+      audioProfile: record?.audioProfile || 'natural',
+      audioBass: record?.audioBass || 0,
+      audioClarity: record?.audioClarity || 0,
+      audioNormalize: !!record?.audioNormalize,
+      offlineChapters: record?.offlineChapters || [],
+      offlineAutoNext: record?.offlineAutoNext !== false,
+      offlineAutoClean: record?.offlineAutoClean !== false,
+      audioCached: !!record?.audioCached,
+      metadata: {
+        series: record?.series || '',
+        genre: record?.genre || '',
+        year: record?.year || '',
+        description: record?.description || '',
+        codec: record?.codec || '',
+      },
     });
-    if (/\.(m4b|m4a|mp4)$/i.test(fileName) && !knownAudioChapters.length) {
-      loadM4bChapters({
+    if (/\.(m4b|m4a|mp4)$/i.test(fileName)) {
+      loadM4bDetails({
         file,
         url: audioUrl,
         metadata,
         savedChapters: sourceBook.audioChapters,
-      }).then((audioChapters) => {
-        if (!audioChapters.length) return;
+      }).then(async (details) => {
+        const embedded = details.metadata || {};
+        const audioChapters = details.chapters || [];
+        const storedCover = details.cover
+          ? await prepareCoverImage(details.cover).catch(() => '')
+          : '';
+        const patch = {
+          audioChapters,
+          title: embedded.title || record?.title || title,
+          author: embedded.authors?.join(', ') || record?.author || '',
+          narrator: embedded.narrators?.join(', ') || record?.narrator || '',
+          series: embedded.series || record?.series || '',
+          genre: embedded.genre || record?.genre || '',
+          year: embedded.year || record?.year || '',
+          description: embedded.description || record?.description || '',
+          codec: embedded.codec || record?.codec || '',
+        };
+        if (storedCover && !sourceBook.cover && !cover) patch.cover = storedCover;
         if (record?.id) {
-          setBookField(record.id, { audioChapters });
+          setBookField(record.id, patch);
           refreshBooks();
         }
         setAudioBook((current) => (
-          current?.audioUrl === audioUrl ? { ...current, chapters: audioChapters } : current
+          current?.audioUrl === audioUrl ? {
+            ...current,
+            title: patch.title,
+            author: patch.author,
+            narrator: patch.narrator,
+            chapters: audioChapters,
+            coverUrl: storedCover || current.coverUrl,
+            metadata: {
+              series: patch.series,
+              genre: patch.genre,
+              year: patch.year,
+              description: patch.description,
+              codec: patch.codec,
+            },
+          } : current
         ));
       });
     }
@@ -605,6 +673,23 @@ export default function App() {
         favorite: !!saved.favorite,
         audioBookmarks: saved.audioBookmarks || [],
         chapters: saved.audioChapters || current.chapters || [],
+        transcriptText: saved.transcriptText || '',
+        transcriptCues: saved.transcriptCues || [],
+        audioProfile: saved.audioProfile || 'natural',
+        audioBass: saved.audioBass || 0,
+        audioClarity: saved.audioClarity || 0,
+        audioNormalize: !!saved.audioNormalize,
+        offlineChapters: saved.offlineChapters || [],
+        offlineAutoNext: saved.offlineAutoNext !== false,
+        offlineAutoClean: saved.offlineAutoClean !== false,
+        audioCached: !!saved.audioCached,
+        metadata: {
+          series: saved.series || '',
+          genre: saved.genre || '',
+          year: saved.year || '',
+          description: saved.description || '',
+          codec: saved.codec || '',
+        },
       } : current));
     }
     refreshBooks();
@@ -626,13 +711,86 @@ export default function App() {
     removeAudioBookmark(audioBook.id, time);
     refreshAudioBook(audioBook.id);
   };
+  const saveAudioTranscript = ({ text: transcriptText, cues: transcriptCues }) => {
+    if (!audioBook?.id) return;
+    setBookField(audioBook.id, { transcriptText, transcriptCues, updatedAt: Date.now() });
+    refreshAudioBook(audioBook.id);
+    setMessage('Синхронизираният текст е запазен към аудиокнигата.');
+  };
+  const saveAudioSettings = (settings) => {
+    if (!audioBook?.id) return;
+    setBookField(audioBook.id, { ...settings, updatedAt: Date.now() });
+    refreshAudioBook(audioBook.id);
+  };
+  const saveOfflineSettings = (settings) => {
+    if (!audioBook?.id) return;
+    setBookField(audioBook.id, { ...settings, updatedAt: Date.now() });
+    refreshAudioBook(audioBook.id);
+  };
+  const cacheCurrentAudioBook = async (onProgress) => {
+    if (!audioBook?.id || !audioBook.audioUrl) return false;
+    if (audioBook.audioCached) return true;
+    const response = await fetch(audioBook.audioUrl);
+    if (!response.ok) throw new Error(`Офлайн изтеглянето върна HTTP ${response.status}.`);
+    const total = Number(response.headers.get('content-length')) || 0;
+    const reader = response.body?.getReader();
+    const chunks = [];
+    let loaded = 0;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.byteLength;
+        if (total) onProgress?.(Math.min(99, Math.round((loaded / total) * 100)));
+      }
+    } else {
+      chunks.push(new Uint8Array(await response.arrayBuffer()));
+    }
+    const type = response.headers.get('content-type') || 'audio/mp4';
+    const file = new window.File(chunks, audioBook.fileName || 'audiobook.m4b', { type });
+    const cacheIdentity = audioBook.remoteKey || `library:${audioBook.id}`;
+    const cached = await cacheAudioBook({
+      remoteKey: cacheIdentity,
+      sourceUrl: audioBook.sourceUrl,
+      file,
+      metadata: {
+        title: audioBook.title,
+        authors: audioBook.author ? [audioBook.author] : [],
+        narrators: audioBook.narrator ? [audioBook.narrator] : [],
+        chapters: audioBook.chapters,
+      },
+      cover: audioBook.coverUrl,
+    });
+    if (!cached) return false;
+    setBookField(audioBook.id, {
+      audioCached: true,
+      remoteKey: cacheIdentity,
+      updatedAt: Date.now(),
+    });
+    setAudioBook((current) => (current ? {
+      ...current,
+      audioCached: true,
+      remoteKey: cacheIdentity,
+    } : current));
+    if (audioBook.offlineAutoClean !== false && loadOfflineSettings().autoClean) {
+      const removed = await pruneAudioBookCache({
+        protectedKeys: [audioBookCacheKey(cacheIdentity, audioBook.sourceUrl)],
+      });
+      removed.forEach((entry) => {
+        const removedBook = books.find((book) => (
+          (entry.remoteKey && book.remoteKey === entry.remoteKey)
+          || (entry.sourceUrl && book.sourceUrl === entry.sourceUrl)
+        ));
+        if (removedBook?.id) setBookField(removedBook.id, { audioCached: false });
+      });
+    }
+    refreshBooks();
+    onProgress?.(100);
+    return true;
+  };
   const resumeAudioBook = async (book) => {
     if (audioBook?.id === book.id) return;
-    if (!book.sourceUrl) {
-      setMessage('Тази аудиокнига трябва да бъде избрана отново от Storytel.');
-      setView('create');
-      return;
-    }
     setMessage(`Проверявам запазеното аудио за „${book.title}“…`);
     try {
       const cached = await loadCachedAudioBook(book);
@@ -646,6 +804,11 @@ export default function App() {
           fromCache: true,
         });
         setMessage('Аудиокнигата е заредена бързо от паметта на телефона.');
+        return;
+      }
+      if (!book.sourceUrl) {
+        setMessage('Локалният аудиофайл вече не е в офлайн паметта. Избери го отново.');
+        setView('create');
         return;
       }
       // Mega книгите се пускат на поток — тръгват веднага, без сваляне.
@@ -1135,6 +1298,10 @@ export default function App() {
           onToggleFavorite={toggleAudioFavorite}
           onBookmark={bookmarkAudio}
           onRemoveBookmark={deleteAudioBookmark}
+          onTranscriptChange={saveAudioTranscript}
+          onAudioSettings={saveAudioSettings}
+          onOfflineSettings={saveOfflineSettings}
+          onCacheBook={cacheCurrentAudioBook}
           onFinished={() => {
             setBookField(audioBook.id, { finished: true });
             refreshAudioBook(audioBook.id);

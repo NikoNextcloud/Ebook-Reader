@@ -35,11 +35,17 @@ export default function TextInput({
     if (!file) return;
     setBusy(true);
     setStatus(`Зареждам ${file.name}…`);
-    const fileTitle = file.name.replace(/\.(txt|docx|pdf|epub|md|rtf|html?|)$/i, '');
+    const fileTitle = file.name.replace(/\.(txt|docx|pdf|epub|md|rtf|html?|m4b|m4a|mp3|aac)$/i, '');
     const title = details.title || fileTitle;
     try {
       const type = ext(file.name);
-      if (type === 'txt') {
+      if (['m4b', 'm4a', 'mp3', 'aac'].includes(type)) {
+        onAudioLoaded?.(
+          { file, name: file.name, metadata: null, cover: null },
+          { source: 'local', book: { name: file.name } },
+        );
+        setStatus(`Готово · ${file.name}`);
+      } else if (type === 'txt') {
         finish(title, await file.text(), details);
       } else if (type === 'md' || type === 'markdown') {
         finish(title, cleanMarkdown(await file.text()), details);
@@ -58,7 +64,7 @@ export default function TextInput({
         const pdf = await pdfjsLib.getDocument({ data: buffer.slice(0) }).promise;
         let value = '';
         for (let i = 1; i <= pdf.numPages; i += 1) {
-          const content = await (await pdf.getPage(i)).getTextContent(); // eslint-disable-line no-await-in-loop
+          const content = await (await pdf.getPage(i)).getTextContent();
           value += `${content.items.map((x) => x.str).join(' ')}\n\n`;
         }
         // Малко текст спрямо броя страници → вероятно сканиран PDF, пробвай OCR.
@@ -183,7 +189,7 @@ export default function TextInput({
           <button className="upload ghost" onClick={() => setShowUrl((v) => !v)}>🔗 Линк</button>
           <button className="upload" onClick={() => input.current.click()}>＋ Качи файл</button>
         </div>
-        <input ref={input} hidden type="file" accept=".txt,.md,.rtf,.html,.htm,.docx,.pdf,.epub" onChange={(e) => load(e.target.files[0])} />
+        <input ref={input} hidden type="file" accept=".txt,.md,.rtf,.html,.htm,.docx,.pdf,.epub,.m4b,.m4a,.mp3,.aac" onChange={(e) => load(e.target.files[0])} />
       </div>
       {showUrl && (
         <div className="url-row">

@@ -1,0 +1,13 @@
+{
+  "appId": "com.voxora.reader",
+  "appName": "Voxora",
+  "webDir": "dist",
+  "backgroundColor": "#061714",
+  "android": {
+    "backgroundColor": "#061714"
+  },
+  "ios": {
+    "backgroundColor": "#061714",
+    "contentInset": "automatic"
+  }
+}

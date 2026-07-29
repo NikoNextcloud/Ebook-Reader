@@ -6,6 +6,33 @@ import {
 } from './idbCache';
 
 const PREFIX = 'remote-audiobook|';
+const SETTINGS_KEY = 'voxora-offline-settings-v1';
+
+export const DEFAULT_OFFLINE_SETTINGS = {
+  autoClean: true,
+  maxBytes: 2 * 1024 * 1024 * 1024,
+};
+
+export const loadOfflineSettings = () => {
+  try {
+    return {
+      ...DEFAULT_OFFLINE_SETTINGS,
+      ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'),
+    };
+  } catch {
+    return { ...DEFAULT_OFFLINE_SETTINGS };
+  }
+};
+
+export const saveOfflineSettings = (settings) => {
+  const next = { ...loadOfflineSettings(), ...settings };
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  } catch {
+    // Настройката остава активна за текущата сесия само ако localStorage е недостъпен.
+  }
+  return next;
+};
 
 export const audioBookCacheKey = (remoteKey, sourceUrl) => {
   const identity = remoteKey || sourceUrl || '';
@@ -84,4 +111,26 @@ export const removeCachedAudioBook = async ({ remoteKey, sourceUrl, cacheKey }) 
     ? cacheKey
     : audioBookCacheKey(remoteKey, sourceUrl);
   if (key) await idbDelete(key);
+};
+
+export const pruneAudioBookCache = async ({
+  protectedKeys = [],
+  maxBytes = loadOfflineSettings().maxBytes,
+} = {}) => {
+  const entries = await listCachedAudioBooks();
+  let total = entries.reduce((sum, entry) => sum + entry.size, 0);
+  if (total <= maxBytes) return [];
+  const protectedSet = new Set(protectedKeys.filter(Boolean));
+  const candidates = [...entries]
+    .filter((entry) => !protectedSet.has(entry.key))
+    .sort((a, b) => a.savedAt - b.savedAt);
+  const removed = [];
+
+  for (const entry of candidates) {
+    if (total <= maxBytes) break;
+    await idbDelete(entry.key);
+    total -= entry.size;
+    removed.push(entry);
+  }
+  return removed;
 };

@@ -5,11 +5,16 @@ import {
   Database,
   HardDrive,
   RefreshCw,
+  SlidersHorizontal,
   ShieldCheck,
   Trash2,
   X,
 } from 'lucide-react';
-import { listCachedAudioBooks } from '../services/audiobookCache';
+import {
+  listCachedAudioBooks,
+  loadOfflineSettings,
+  saveOfflineSettings,
+} from '../services/audiobookCache';
 
 const formatBytes = (bytes = 0) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
@@ -38,6 +43,7 @@ export default function StorageManager({
   const [supportsPersistence, setSupportsPersistence] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
+  const [offlineSettings, setOfflineSettings] = useState(() => loadOfflineSettings());
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -82,6 +88,10 @@ export default function StorageManager({
     } finally {
       setBusy('');
     }
+  };
+
+  const updateOfflineSettings = (patch) => {
+    setOfflineSettings(saveOfflineSettings(patch));
   };
 
   const removeOne = async (entry, book) => {
@@ -149,6 +159,30 @@ export default function StorageManager({
             </button>
           )}
           {!persistent && !supportsPersistence && <small>Не се поддържа от този браузър</small>}
+        </div>
+
+        <div className="storage-auto-clean">
+          <SlidersHorizontal aria-hidden="true" />
+          <label>
+            <span><b>Автоматично почистване</b></span>
+            <input
+              type="checkbox"
+              checked={offlineSettings.autoClean}
+              onChange={(event) => updateOfflineSettings({ autoClean: event.target.checked })}
+            />
+          </label>
+          <label>
+            <span>Лимит</span>
+            <select
+              value={offlineSettings.maxBytes}
+              onChange={(event) => updateOfflineSettings({ maxBytes: Number(event.target.value) })}
+            >
+              <option value={512 * 1024 * 1024}>512 MB</option>
+              <option value={1024 * 1024 * 1024}>1 GB</option>
+              <option value={2 * 1024 * 1024 * 1024}>2 GB</option>
+              <option value={4 * 1024 * 1024 * 1024}>4 GB</option>
+            </select>
+          </label>
         </div>
 
         <div className="storage-list-head">

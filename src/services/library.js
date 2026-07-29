@@ -101,7 +101,8 @@ export const saveBook = ({
 
 export const saveAudioBook = ({
   id, title, author, narrator, fileName, source, sourceUrl, remoteKey, category, favorite, cover,
-  audioChapters,
+  audioChapters, series, genre, year, description, codec, transcriptText, transcriptCues,
+  audioProfile, audioBass, audioClarity, audioNormalize, offlineChapters,
 }) => {
   if (!title) return null;
   const list = read();
@@ -130,6 +131,18 @@ export const saveAudioBook = ({
   if (favorite !== undefined) record.favorite = favorite;
   if (cover !== undefined) record.cover = cover;
   if (audioChapters !== undefined) record.audioChapters = audioChapters;
+  if (series !== undefined) record.series = series;
+  if (genre !== undefined) record.genre = genre;
+  if (year !== undefined) record.year = year;
+  if (description !== undefined) record.description = description;
+  if (codec !== undefined) record.codec = codec;
+  if (transcriptText !== undefined) record.transcriptText = transcriptText;
+  if (transcriptCues !== undefined) record.transcriptCues = transcriptCues;
+  if (audioProfile !== undefined) record.audioProfile = audioProfile;
+  if (audioBass !== undefined) record.audioBass = audioBass;
+  if (audioClarity !== undefined) record.audioClarity = audioClarity;
+  if (audioNormalize !== undefined) record.audioNormalize = audioNormalize;
+  if (offlineChapters !== undefined) record.offlineChapters = offlineChapters;
   write([record, ...list.filter((book) => book.id !== record.id)]);
   return record;
 };

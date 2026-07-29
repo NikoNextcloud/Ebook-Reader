@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react';
-import { HardDrive, Plus } from 'lucide-react';
+import {
+  HardDrive,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import BookCard from './BookCard';
 import ContinueCard from './ContinueCard';
 import { formatDuration } from '../services/cover';
@@ -27,14 +33,52 @@ export default function Home({
   onCoverChange, onOpenStorage,
 }) {
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [mediaFilter, setMediaFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('recent');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const categories = useMemo(() => [...new Set(
+    books.map((book) => book.category || book.genre).filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b, 'bg')), [books]);
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return books;
-    return books.filter((book) => (
-      `${book.title} ${book.author || ''} ${book.narrator || ''}`.toLowerCase().includes(needle)
-    ));
-  }, [books, query]);
+    const needle = query.trim().toLocaleLowerCase('bg-BG');
+    const matchesStatus = (book) => {
+      if (statusFilter === 'progress') return inProgress(book);
+      if (statusFilter === 'favorite') return !!book.favorite;
+      if (statusFilter === 'offline') return !!(book.cachedOffline || book.audioCached);
+      if (statusFilter === 'finished') return !!book.finished;
+      return true;
+    };
+    const matchesMedia = (book) => (
+      mediaFilter === 'all'
+      || (mediaFilter === 'audio' ? book.mediaType === 'audio' : book.mediaType !== 'audio')
+    );
+    const matchesCategory = (book) => (
+      categoryFilter === 'all' || (book.category || book.genre) === categoryFilter
+    );
+    const matchesQuery = (book) => !needle || [
+      book.title,
+      book.author,
+      book.narrator,
+      book.category,
+      book.genre,
+      book.series,
+      book.year,
+      book.source,
+    ].filter(Boolean).join(' ').toLocaleLowerCase('bg-BG').includes(needle);
+
+    return books
+      .filter((book) => matchesStatus(book) && matchesMedia(book) && matchesCategory(book) && matchesQuery(book))
+      .sort((a, b) => {
+        if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '', 'bg');
+        if (sortBy === 'author') return (a.author || '').localeCompare(b.author || '', 'bg');
+        if (sortBy === 'progress') return progressOf(b) - progressOf(a);
+        return (b.updatedAt || 0) - (a.updatedAt || 0);
+      });
+  }, [books, categoryFilter, mediaFilter, query, sortBy, statusFilter]);
 
   // Най-скорошната незавършена книга отива в голямата карта горе.
   const continueBook = useMemo(
@@ -42,8 +86,12 @@ export default function Home({
     [books],
   );
 
-  const searching = !!query.trim();
-  const shelves = searching
+  const filtering = !!query.trim()
+    || statusFilter !== 'all'
+    || mediaFilter !== 'all'
+    || categoryFilter !== 'all'
+    || sortBy !== 'recent';
+  const shelves = filtering
     ? [['Резултати', filtered]]
     : [
       ['Продължи да слушаш', filtered.filter((b) => inProgress(b) && b.id !== continueBook?.id)],
@@ -76,7 +124,7 @@ export default function Home({
         </div>
       </section>
 
-      {!searching && continueBook && (
+      {!filtering && continueBook && (
         <ContinueCard
           book={continueBook}
           percent={progressOf(continueBook)}
@@ -85,15 +133,95 @@ export default function Home({
         />
       )}
 
-      {books.length > 3 && (
-        <input
-          className="library-search"
-          type="search"
-          value={query}
-          placeholder="Търси по заглавие или автор…"
-          aria-label="Търси в библиотеката"
-          onChange={(event) => setQuery(event.target.value)}
-        />
+      {books.length > 0 && (
+        <section className="library-discovery" aria-label="Търсене и филтри">
+          <div className="library-search-row">
+            <label className="library-search">
+              <Search aria-hidden="true" />
+              <input
+                type="search"
+                value={query}
+                placeholder="Заглавие, автор, жанр…"
+                aria-label="Търси в библиотеката"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query && (
+                <button onClick={() => setQuery('')} aria-label="Изчисти търсенето">
+                  <X aria-hidden="true" />
+                </button>
+              )}
+            </label>
+            <button
+              className={`library-filter-toggle ${showFilters || filtering ? 'on' : ''}`}
+              onClick={() => setShowFilters((value) => !value)}
+              aria-label="Филтри"
+              aria-expanded={showFilters}
+            >
+              <SlidersHorizontal aria-hidden="true" />
+            </button>
+          </div>
+
+          {categories.length > 0 && (
+            <div className="library-category-tabs">
+              <button className={categoryFilter === 'all' ? 'on' : ''} onClick={() => setCategoryFilter('all')}>Всички</button>
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  className={categoryFilter === category ? 'on' : ''}
+                  onClick={() => setCategoryFilter(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {showFilters && (
+            <div className="library-filter-panel">
+              <div className="library-segments" aria-label="Статус">
+                {[
+                  ['all', 'Всички'],
+                  ['progress', 'Започнати'],
+                  ['favorite', 'Любими'],
+                  ['offline', 'Офлайн'],
+                  ['finished', 'Завършени'],
+                ].map(([value, label]) => (
+                  <button key={value} className={statusFilter === value ? 'on' : ''} onClick={() => setStatusFilter(value)}>{label}</button>
+                ))}
+              </div>
+              <div className="library-filter-selects">
+                <label>
+                  <span>Формат</span>
+                  <select value={mediaFilter} onChange={(event) => setMediaFilter(event.target.value)}>
+                    <option value="all">Всички</option>
+                    <option value="audio">Аудиокниги</option>
+                    <option value="text">Текстови книги</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Подреди</span>
+                  <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                    <option value="recent">Последно отваряни</option>
+                    <option value="title">По заглавие</option>
+                    <option value="author">По автор</option>
+                    <option value="progress">По прогрес</option>
+                  </select>
+                </label>
+              </div>
+              {filtering && (
+                <button className="library-clear-filters" onClick={() => {
+                  setQuery('');
+                  setStatusFilter('all');
+                  setMediaFilter('all');
+                  setCategoryFilter('all');
+                  setSortBy('recent');
+                }}>
+                  <X aria-hidden="true" /> Изчисти
+                </button>
+              )}
+            </div>
+          )}
+        </section>
       )}
 
       {/* На телефон показваме само двете важни числа (виж CSS). */}
@@ -113,7 +241,7 @@ export default function Home({
           <p>Още няма книги. Добави текст, статия или качи файл, за да започнеш.</p>
           <button className="new-book" onClick={onNew}><Plus aria-hidden="true" /> Добави първата си книга</button>
         </div>
-      ) : searching && !filtered.length ? (
+      ) : filtering && !filtered.length ? (
         <div className="empty-lib"><p>Нищо не съвпада с „{query}“.</p></div>
       ) : (
         shelves.map(([label, list]) => (
