@@ -2119,10 +2119,21 @@ header.minimal{justify-content:space-between;gap:16px}
   grid-auto-columns:148px;
   gap:14px;
   overflow-x:auto;
-  padding:2px 2px 12px;
-  scroll-snap-type:x proximity;
-  scrollbar-width:thin;
-  scrollbar-color:#36534d transparent;
+  padding:2px 2px 8px;
+  scroll-behavior:smooth;
+  scroll-snap-type:x mandatory;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  overscroll-behavior-inline:contain;
+  touch-action:pan-x pan-y;
+  cursor:grab;
+  user-select:none;
+}
+.storytel-shelf-row.dragging{cursor:grabbing;scroll-snap-type:none}
+.storytel-shelf-row::-webkit-scrollbar{display:none}
+.storytel-shelf-row:focus{outline:none}
+.storytel-shelf-row:focus-visible{
+  box-shadow:0 0 0 1px rgba(255,129,87,.48);
 }
 .storytel-card{min-width:0;scroll-snap-align:start}
 .storytel-cover{
@@ -2152,6 +2163,13 @@ header.minimal{justify-content:space-between;gap:16px}
   box-shadow:0 3px 12px #0005;
 }
 .storytel-audio-badge svg{width:14px;height:14px}
+.library-top-shelf .storytel-audio-badge{
+  background:#173e38;
+  color:#dcebe6;
+}
+.library-top-shelf .storytel-play{
+  background:#e6b866;
+}
 .storytel-play{
   position:absolute;
   right:9px;
@@ -2206,6 +2224,10 @@ header.minimal{justify-content:space-between;gap:16px}
 }
 .storytel-retry svg{width:16px;height:16px}
 @keyframes storytelLoading{to{background-position:-220% 0}}
+
+@media(prefers-reduced-motion:reduce){
+  .storytel-shelf-row{scroll-behavior:auto}
+}
 
 @media(max-width:560px){
   .home-footer-tools{margin-top:34px;padding-top:14px}

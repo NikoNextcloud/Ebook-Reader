@@ -12,13 +12,12 @@ import {
 } from 'lucide-react';
 import {
   audioStreamUrl,
-  discoverFourEtiPage,
   downloadRemoteItem,
   downloadRemoteArtwork,
   formatRemoteSize,
   loadFourEtiLibrary,
   loadMegaCatalog,
-  openRemoteCatalog,
+  resolveFourEtiBookItem,
   STORYTEL_LIBRARY_URL,
 } from '../services/remoteBooks';
 import {
@@ -29,17 +28,6 @@ import {
 
 const FOUR_ETI_URL = 'https://4eti.me/';
 const ALL_CATEGORY = { id: 'all', name: 'Всички' };
-
-const documentScore = (item) => {
-  if (/\.docx$/i.test(item.name)) return 0;
-  if (/\.epub$/i.test(item.name)) return 1;
-  if (/\.fb2$/i.test(item.name)) return 2;
-  if (/\.(mobi|azw3)$/i.test(item.name)) return 3;
-  if (/\.(txt|rtf|html?|md)$/i.test(item.name)) return 4;
-  if (/\.pdf$/i.test(item.name)) return 5;
-  if (/\.cbz$/i.test(item.name)) return 6;
-  return 7;
-};
 
 export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   const [source, setSource] = useState('');
@@ -164,20 +152,8 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   };
 
   const chooseFourEtiBook = async (book) => {
-    const discovered = await discoverFourEtiPage(book.url);
-    const candidates = [];
-    for (const sourceItem of discovered.items) {
-      try {
-        // Източниците са малко; проверяваме ги последователно и предпочитаме чист текстов формат.
-        const resolved = await openRemoteCatalog(sourceItem.url, sourceItem.name);
-        candidates.push(...resolved.items);
-      } catch {
-        // Някои стари публикации сочат към вече недостъпни хранилища.
-      }
-    }
-    if (!candidates.length) throw new Error('За тази книга не беше намерен достъпен поддържан файл.');
-    candidates.sort((a, b) => documentScore(a) - documentScore(b));
-    await importRemoteItem(candidates[0], { book });
+    const item = await resolveFourEtiBookItem(book);
+    await importRemoteItem(item, { book });
   };
 
   const chooseBook = async (item) => {

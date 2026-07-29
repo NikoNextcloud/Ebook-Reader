@@ -1,12 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { splitIntoChapters } from '../services/chapters';
 import { cleanPdfText, cleanMarkdown, cleanRtf, cleanHtml } from '../services/textCleanup';
+import {
+  downloadRemoteItem,
+  resolveFourEtiBookItem,
+} from '../services/remoteBooks';
+import {
+  loadRemoteFavorites,
+  remoteBookKey,
+} from '../services/remoteFavorites';
 import BookSourcePicker from './BookSourcePicker';
 
 const ext = (name) => name.toLowerCase().split('.').pop();
 
 export default function TextInput({
   text, setText, cover, onCoverFile, onCoverClear, onLoaded, onAudioLoaded, onEditorMode,
+  remoteSuggestion, onRemoteSuggestionHandled,
 }) {
   const input = useRef();
   const coverInput = useRef();
@@ -17,6 +26,7 @@ export default function TextInput({
   const [url, setUrl] = useState('');
   const [sourceMode, setSourceMode] = useState('');
   const [coverBusy, setCoverBusy] = useState(false);
+  const handledSuggestion = useRef('');
 
   useEffect(() => {
     onEditorMode?.(sourceMode === 'manual');
@@ -170,6 +180,45 @@ export default function TextInput({
       if (coverInput.current) coverInput.current.value = '';
     }
   };
+
+  useEffect(() => {
+    const requestId = remoteSuggestion?.requestId;
+    const book = remoteSuggestion?.item;
+    if (!requestId || !book || handledSuggestion.current === requestId) return undefined;
+    handledSuggestion.current = requestId;
+    let active = true;
+
+    const importSuggestion = async () => {
+      setSourceMode('manual');
+      setBusy(true);
+      setStatus(`Подготвям „${book.name}“…`);
+      try {
+        const item = await resolveFourEtiBookItem(book);
+        const downloaded = await downloadRemoteItem(item, (percent) => {
+          if (active) setStatus(`Свалям „${book.name}“… ${percent}%`);
+        });
+        if (!active) return;
+        const key = remoteBookKey('4eti', book);
+        await load(downloaded.file, {
+          title: book.name,
+          favorite: loadRemoteFavorites().has(key),
+          source: '4eti',
+          sourceUrl: book.url,
+          remoteKey: key,
+        });
+      } catch (error) {
+        if (active) setStatus(error.message || 'Книгата не може да бъде заредена.');
+      } finally {
+        if (active) {
+          setBusy(false);
+          onRemoteSuggestionHandled?.();
+        }
+      }
+    };
+
+    importSuggestion();
+    return () => { active = false; };
+  }, [remoteSuggestion?.requestId]);
 
   if (sourceMode !== 'manual') {
     return (

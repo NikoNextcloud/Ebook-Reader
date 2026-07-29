@@ -6,6 +6,17 @@ export const STORYTEL_LIBRARY_URL = 'https://mega.nz/folder/A3QgXZTI#1km3sx2JBYE
 
 export const MAX_IN_APP_AUDIO_BYTES = 220 * 1024 * 1024;
 
+export const remoteDocumentScore = (item) => {
+  if (/\.docx$/i.test(item.name)) return 0;
+  if (/\.epub$/i.test(item.name)) return 1;
+  if (/\.fb2$/i.test(item.name)) return 2;
+  if (/\.(mobi|azw3)$/i.test(item.name)) return 3;
+  if (/\.(txt|rtf|html?|md)$/i.test(item.name)) return 4;
+  if (/\.pdf$/i.test(item.name)) return 5;
+  if (/\.cbz$/i.test(item.name)) return 6;
+  return 7;
+};
+
 // Адрес, от който плеърът пуска аудиокнигата НА ПОТОК през нашия сървър.
 // Така телефонът тегли само парчето, което свири, вместо целия файл —
 // това е и решението за iPhone, където големите файлове задръстваха паметта.
@@ -270,6 +281,25 @@ export const openRemoteCatalog = async (url, label = '') => {
   if (isMegaUrl(url)) return loadMegaCatalog(url);
   if (isYandexPublicUrl(url)) return loadYandexCatalog(url);
   return loadDirectCatalog(url, label);
+};
+
+export const resolveFourEtiBookItem = async (book) => {
+  const discovered = await discoverFourEtiPage(book.url);
+  const candidates = [];
+  for (const sourceItem of discovered.items) {
+    try {
+      // Старите публикации понякога съдържат няколко огледални хранилища.
+      const resolved = await openRemoteCatalog(sourceItem.url, sourceItem.name);
+      candidates.push(...resolved.items);
+    } catch {
+      // Пропускаме недостъпното огледало и проверяваме следващото.
+    }
+  }
+  if (!candidates.length) {
+    throw new Error('За тази книга не беше намерен достъпен поддържан файл.');
+  }
+  candidates.sort((a, b) => remoteDocumentScore(a) - remoteDocumentScore(b));
+  return candidates[0];
 };
 
 const downloadBuffer = async (node) => new Uint8Array(await node.downloadBuffer());

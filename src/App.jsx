@@ -80,6 +80,7 @@ export default function App() {
   const [playerOpen, setPlayerOpen] = useState(false);
   const [books, setBooks] = useState(startBooks);
   const [currentBookId, setCurrentBookId] = useState(null);
+  const [remoteSuggestion, setRemoteSuggestion] = useState(null);
   const [activeChunk, setActiveChunk] = useState(-1);
   const [downloading, setDownloading] = useState(false);
   const [caching, setCaching] = useState(false);
@@ -1078,6 +1079,19 @@ export default function App() {
     }
   };
 
+  const openLibrarySuggestion = async (item) => {
+    setMessage(`Подготвям „${item.name}“…`);
+    setRemoteSuggestion({
+      requestId: `4eti-${Date.now()}-${item.id || item.url}`,
+      item,
+    });
+    setView('create');
+    setText('');
+    setCurrentBookId(null);
+    setDraftCover('');
+    fileTitle.current = '';
+  };
+
   // ——— Клавишни комбинации ———
   useEffect(() => {
     const onKey = (event) => {
@@ -1144,6 +1158,7 @@ export default function App() {
             setText('');
             setCurrentBookId(null);
             setDraftCover('');
+            setRemoteSuggestion(null);
             fileTitle.current = '';
           }}
           onRate={rateBook}
@@ -1155,6 +1170,7 @@ export default function App() {
           onOpenStorage={() => setStorageOpen(true)}
           onOpenAdmin={() => setAdminOpen(true)}
           onOpenStorytel={openStorytelSuggestion}
+          onOpenLibrarySuggestion={openLibrarySuggestion}
         />
       ) : (
         <main>
@@ -1176,6 +1192,11 @@ export default function App() {
               onLoaded={onLoaded}
               onAudioLoaded={openAudioBook}
               onEditorMode={setEditorReady}
+              remoteSuggestion={remoteSuggestion}
+              onRemoteSuggestionHandled={() => {
+                setRemoteSuggestion(null);
+                setMessage('');
+              }}
             />
             {editorReady && <aside className="card settings">
               <Library

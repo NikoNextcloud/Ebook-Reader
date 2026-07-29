@@ -32,7 +32,7 @@ const inProgress = (book) => (book.chunkIndex > 0 || book.audioPosition > 0) && 
 
 export default function Home({
   books, stats, queue, onOpen, onNew, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove,
-  onCoverChange, onOpenStorage, onOpenAdmin, onOpenStorytel,
+  onCoverChange, onOpenStorage, onOpenAdmin, onOpenStorytel, onOpenLibrarySuggestion,
 }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -230,7 +230,12 @@ export default function Home({
         <div className="stat secondary"><b>{books.length}</b><small>книги</small></div>
       </div>
 
-      {!filtering && <StorytelShelf onOpen={onOpenStorytel} />}
+      {!filtering && (
+        <StorytelShelf
+          onOpen={onOpenStorytel}
+          onOpenLibrary={onOpenLibrarySuggestion}
+        />
+      )}
 
       {queue.length > 0 && (
         <p className="queue-note">В опашката: {queue.length} {queue.length === 1 ? 'книга' : 'книги'} · ще се пуснат една след друга</p>
