@@ -68,7 +68,7 @@ export const selectFeaturedLibrary = (items, limit = 10, seed) => (
   selectDailyRecommendations(items, { limit, kind: 'page', seed })
 );
 
-function RecommendationCarousel({
+export function RecommendationCarousel({
   items,
   covers,
   openingId,
@@ -86,12 +86,13 @@ function RecommendationCarousel({
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
-    if (items.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return undefined;
-    }
+    if (items.length < 2) return undefined;
     let frame = 0;
     let previousTime = window.performance.now();
-    const speed = 11;
+    let virtualPosition = rowRef.current?.scrollLeft || 0;
+    let wasPaused = false;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const speed = reduceMotion ? 10 : 22;
 
     const animate = (time) => {
       const row = rowRef.current;
@@ -99,15 +100,20 @@ function RecommendationCarousel({
       previousTime = time;
 
       if (row && !pausedRef.current && !document.hidden) {
-        row.scrollLeft += speed * (elapsed / 1000);
+        if (wasPaused) virtualPosition = row.scrollLeft;
+        wasPaused = false;
+        virtualPosition += speed * (elapsed / 1000);
         const repeatedStart = row.children[items.length];
         const firstCard = row.firstElementChild;
         const cycleWidth = repeatedStart && firstCard
           ? repeatedStart.offsetLeft - firstCard.offsetLeft
           : 0;
-        if (cycleWidth && row.scrollLeft >= cycleWidth) {
-          row.scrollLeft -= cycleWidth;
+        if (cycleWidth && virtualPosition >= cycleWidth) {
+          virtualPosition -= cycleWidth;
         }
+        row.scrollLeft = virtualPosition;
+      } else {
+        wasPaused = true;
       }
       frame = window.requestAnimationFrame(animate);
     };
@@ -160,6 +166,7 @@ function RecommendationCarousel({
     if (!dragRef.current.active) return;
     dragRef.current.active = false;
     setDragging(false);
+    pausedRef.current = false;
     if (rowRef.current.hasPointerCapture(event.pointerId)) {
       rowRef.current.releasePointerCapture(event.pointerId);
     }
@@ -184,14 +191,6 @@ function RecommendationCarousel({
       onPointerCancel={stopDrag}
       onClickCapture={suppressDraggedClick}
       onDragStart={(event) => event.preventDefault()}
-      onPointerEnter={(event) => {
-        if (event.pointerType === 'mouse') pausedRef.current = true;
-      }}
-      onPointerLeave={(event) => {
-        if (event.pointerType === 'mouse') pausedRef.current = false;
-      }}
-      onFocus={() => { pausedRef.current = true; }}
-      onBlur={() => { pausedRef.current = false; }}
     >
       {[...items, ...items].map((item, index) => {
         const title = cleanTitle(item.name);
