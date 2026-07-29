@@ -89,15 +89,27 @@ function RecommendationCarousel({
     if (items.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return undefined;
     }
-    const timer = window.setInterval(() => {
+    let frame = 0;
+    let previousTime = window.performance.now();
+    let direction = 1;
+    const speed = 11;
+
+    const animate = (time) => {
       const row = rowRef.current;
-      if (!row || pausedRef.current || document.hidden) return;
-      const firstCard = row.firstElementChild;
-      const step = (firstCard?.getBoundingClientRect().width || 148) + 14;
-      const nearEnd = row.scrollLeft + row.clientWidth >= row.scrollWidth - step;
-      row.scrollTo({ left: nearEnd ? 0 : row.scrollLeft + step, behavior: 'smooth' });
-    }, 6200);
-    return () => window.clearInterval(timer);
+      const elapsed = Math.min(64, time - previousTime);
+      previousTime = time;
+
+      if (row && !pausedRef.current && !document.hidden) {
+        const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
+        row.scrollLeft += direction * speed * (elapsed / 1000);
+        if (row.scrollLeft >= maxScroll - 1) direction = -1;
+        else if (row.scrollLeft <= 1) direction = 1;
+      }
+      frame = window.requestAnimationFrame(animate);
+    };
+
+    frame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frame);
   }, [items]);
 
   const moveWithKeyboard = (event) => {
@@ -109,7 +121,11 @@ function RecommendationCarousel({
   };
 
   const startDrag = (event) => {
-    if (event.pointerType !== 'mouse' || event.button !== 0) return;
+    if (event.pointerType !== 'mouse') {
+      pausedRef.current = true;
+      return;
+    }
+    if (event.button !== 0) return;
     const row = rowRef.current;
     dragRef.current = {
       active: true,
@@ -133,6 +149,10 @@ function RecommendationCarousel({
   };
 
   const stopDrag = (event) => {
+    if (event.pointerType !== 'mouse') {
+      pausedRef.current = false;
+      return;
+    }
     if (!dragRef.current.active) return;
     dragRef.current.active = false;
     setDragging(false);
@@ -160,8 +180,12 @@ function RecommendationCarousel({
       onPointerCancel={stopDrag}
       onClickCapture={suppressDraggedClick}
       onDragStart={(event) => event.preventDefault()}
-      onPointerEnter={() => { pausedRef.current = true; }}
-      onPointerLeave={() => { pausedRef.current = false; }}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') pausedRef.current = true;
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'mouse') pausedRef.current = false;
+      }}
       onFocus={() => { pausedRef.current = true; }}
       onBlur={() => { pausedRef.current = false; }}
     >
