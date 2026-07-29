@@ -1,6 +1,8 @@
-const DOCUMENT_RE = /\.(txt|md|markdown|rtf|html?|docx|pdf|epub)$/i;
+const DOCUMENT_RE = /\.(txt|md|markdown|rtf|html?|docx|pdf|epub|mobi|azw3|fb2|cbz)$/i;
 const AUDIO_RE = /\.(m4b|m4a|mp3|aac)$/i;
 const fourEtiCache = new Map();
+const megaCatalogCache = new Map();
+export const STORYTEL_LIBRARY_URL = 'https://mega.nz/folder/A3QgXZTI#1km3sx2JBYE_xIGoDyV_sQ';
 
 export const MAX_IN_APP_AUDIO_BYTES = 220 * 1024 * 1024;
 
@@ -177,7 +179,7 @@ const megaPath = (node, root) => {
   return parts.join(' / ');
 };
 
-export const loadMegaCatalog = async (url) => {
+const fetchMegaCatalog = async (url) => {
   const { File: MegaFile } = await import('megajs');
   const root = MegaFile.fromURL(url);
   const selected = await root.loadAttributes();
@@ -212,6 +214,16 @@ export const loadMegaCatalog = async (url) => {
   return { title: selected.name || 'Mega', items, categories };
 };
 
+export const loadMegaCatalog = (url) => {
+  if (!megaCatalogCache.has(url)) {
+    megaCatalogCache.set(url, fetchMegaCatalog(url).catch((error) => {
+      megaCatalogCache.delete(url);
+      throw error;
+    }));
+  }
+  return megaCatalogCache.get(url);
+};
+
 const yandexApi = 'https://cloud-api.yandex.net/v1/disk/public/resources';
 
 export const loadYandexCatalog = async (publicUrl) => {
@@ -231,7 +243,7 @@ export const loadYandexCatalog = async (publicUrl) => {
       provider: 'yandex',
     }));
 
-  if (!items.length) throw new Error('В публичната Yandex папка няма поддържан PDF, EPUB или DOCX файл.');
+  if (!items.length) throw new Error('В публичната Yandex папка няма поддържан формат за електронна книга.');
   return { title: metadata.name || 'Yandex Disk', items };
 };
 
@@ -239,7 +251,7 @@ export const loadDirectCatalog = async (url, label = '') => {
   const parsed = new URL(url);
   const name = decodeURIComponent(parsed.pathname.split('/').pop() || label || 'Книга');
   const kind = supportedKind(name);
-  if (!kind) throw new Error('Този линк не води към поддържан PDF, EPUB, DOCX или аудиофайл.');
+  if (!kind) throw new Error('Този линк не води към поддържана електронна или аудиокнига.');
   return {
     title: label || name,
     items: [{

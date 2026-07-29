@@ -26,9 +26,13 @@ import {
   getLibraryWriteError, clearLibraryWriteError,
 } from './services/library';
 import {
-  audioStreamUrl, downloadRemoteItem, isMegaUrl, openRemoteCatalog,
+  audioStreamUrl, downloadRemoteArtwork, downloadRemoteItem, isMegaUrl, openRemoteCatalog,
 } from './services/remoteBooks';
-import { setRemoteFavorite } from './services/remoteFavorites';
+import {
+  loadRemoteFavorites,
+  remoteBookKey,
+  setRemoteFavorite,
+} from './services/remoteFavorites';
 import { loadSettings, saveSettings } from './services/settings';
 import { detectLanguage, langLabel } from './services/lang';
 import { idbClear } from './services/idbCache';
@@ -1045,6 +1049,35 @@ export default function App() {
     }
   };
 
+  const openStorytelSuggestion = async (item) => {
+    setMessage(`Зареждам „${item.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '')}“…`);
+    try {
+      let artwork = { metadata: null, cover: null };
+      try {
+        artwork = await downloadRemoteArtwork(item);
+      } catch {
+        // Аудиокнигата може да започне и без автоматична корица.
+      }
+      const key = remoteBookKey('mega', item);
+      openAudioBook({
+        streamUrl: audioStreamUrl(item.url, item.name),
+        name: item.name,
+        size: item.size,
+        ...artwork,
+      }, {
+        item,
+        book: item,
+        source: 'mega',
+        favorite: loadRemoteFavorites().has(key),
+        remoteKey: key,
+      });
+      setMessage('');
+    } catch (error) {
+      setMessage(error.message || 'Предложението не може да бъде заредено.');
+      throw error;
+    }
+  };
+
   // ——— Клавишни комбинации ———
   useEffect(() => {
     const onKey = (event) => {
@@ -1121,6 +1154,7 @@ export default function App() {
           onCoverChange={changeBookCover}
           onOpenStorage={() => setStorageOpen(true)}
           onOpenAdmin={() => setAdminOpen(true)}
+          onOpenStorytel={openStorytelSuggestion}
         />
       ) : (
         <main>

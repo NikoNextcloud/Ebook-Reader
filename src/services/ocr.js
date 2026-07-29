@@ -31,3 +31,21 @@ export const ocrPdf = async (arrayBuffer, onProgress) => {
     await worker.terminate();
   }
 };
+
+export const ocrImages = async (images, onProgress) => {
+  const { createWorker } = await import('tesseract.js');
+  const worker = await createWorker(['bul', 'eng']);
+  const texts = [];
+
+  try {
+    for (let index = 0; index < images.length; index += 1) {
+      onProgress?.(Math.round((index / Math.max(1, images.length)) * 100));
+      const { data } = await worker.recognize(images[index]);
+      texts.push(data.text || '');
+    }
+    onProgress?.(100);
+    return texts;
+  } finally {
+    await worker.terminate();
+  }
+};

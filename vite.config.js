@@ -56,7 +56,7 @@ export default defineConfig({
             },
             {
               name: 'document-readers',
-              test: /node_modules[\\/](mammoth|jszip|pdfjs-dist|tesseract\.js)[\\/]/,
+              test: /node_modules[\\/](mammoth|jszip|pdfjs-dist|tesseract\.js|foliate-js)[\\/]/,
               priority: 10,
               maxSize: 420 * 1024,
             },

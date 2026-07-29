@@ -35,7 +35,7 @@ export default function TextInput({
     if (!file) return;
     setBusy(true);
     setStatus(`Зареждам ${file.name}…`);
-    const fileTitle = file.name.replace(/\.(txt|docx|pdf|epub|md|rtf|html?|m4b|m4a|mp3|aac)$/i, '');
+    const fileTitle = file.name.replace(/\.(txt|docx|pdf|epub|mobi|azw3|fb2|cbz|md|rtf|html?|m4b|m4a|mp3|aac)$/i, '');
     const title = details.title || fileTitle;
     try {
       const type = ext(file.name);
@@ -88,8 +88,29 @@ export default function TextInput({
         });
         if (book.cover) onCoverFile?.(book.cover, { prepared: true });
         setStatus(`Готово · ${book.chapters.length} глави`);
+      } else if (['mobi', 'azw3', 'fb2', 'cbz'].includes(type)) {
+        const { parseEbookFile } = await import('../services/ebookFormats');
+        const book = await parseEbookFile(file, (percent) => {
+          setStatus(type === 'cbz'
+            ? `Разпознавам текста в CBZ… ${percent}%`
+            : `Разчитам ${type.toUpperCase()}… ${percent}%`);
+        });
+        const importedCover = details.cover || (book.cover && onCoverFile
+          ? await onCoverFile(book.cover).catch(() => '')
+          : '');
+        const fullText = book.chapters.map((chapter) => chapter.text).join('\n\n');
+        setText(book.chapters[0].text);
+        onLoaded?.({
+          title: details.title || book.title || title,
+          author: details.author || book.author,
+          text: fullText,
+          chapters: book.chapters,
+          ...details,
+          cover: importedCover || cover,
+        });
+        setStatus(`Готово · ${book.chapters.length} ${type === 'cbz' ? 'страници' : 'глави'}`);
       } else {
-        throw new Error('Поддържат се .txt, .md, .rtf, .html, .docx, .pdf и .epub файлове.');
+        throw new Error('Поддържат се EPUB, PDF, MOBI, AZW3, FB2, CBZ, TXT и DOCX файлове.');
       }
     } catch (error) {
       setStatus(error.message || 'Файлът не може да бъде прочетен.');
@@ -189,7 +210,7 @@ export default function TextInput({
           <button className="upload ghost" onClick={() => setShowUrl((v) => !v)}>🔗 Линк</button>
           <button className="upload" onClick={() => input.current.click()}>＋ Качи файл</button>
         </div>
-        <input ref={input} hidden type="file" accept=".txt,.md,.rtf,.html,.htm,.docx,.pdf,.epub,.m4b,.m4a,.mp3,.aac" onChange={(e) => load(e.target.files[0])} />
+        <input ref={input} hidden type="file" accept=".txt,.md,.rtf,.html,.htm,.docx,.pdf,.epub,.mobi,.azw3,.fb2,.cbz,.m4b,.m4a,.mp3,.aac" onChange={(e) => load(e.target.files[0])} />
       </div>
       {showUrl && (
         <div className="url-row">
@@ -226,7 +247,7 @@ export default function TextInput({
       </div>
       <textarea aria-label="Текст за четене" value={text} onChange={(e) => setText(e.target.value)} placeholder="Постави статия, история, бележки или откъс от книга — или пусни файл тук…" />
       <div className="text-meta">
-        <span>{status || 'TXT · MD · RTF · HTML · DOCX · PDF · EPUB'}</span>
+        <span>{status || 'EPUB · PDF · MOBI · AZW3 · FB2 · CBZ · TXT · DOCX'}</span>
         <span>{text.length.toLocaleString('bg-BG')} знака</span>
       </div>
     </section>

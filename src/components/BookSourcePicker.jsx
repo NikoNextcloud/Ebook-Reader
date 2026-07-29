@@ -19,6 +19,7 @@ import {
   loadFourEtiLibrary,
   loadMegaCatalog,
   openRemoteCatalog,
+  STORYTEL_LIBRARY_URL,
 } from '../services/remoteBooks';
 import {
   loadRemoteFavorites,
@@ -26,16 +27,18 @@ import {
   setRemoteFavorite,
 } from '../services/remoteFavorites';
 
-const MEGA_LIBRARY_URL = 'https://mega.nz/folder/A3QgXZTI#1km3sx2JBYE_xIGoDyV_sQ';
 const FOUR_ETI_URL = 'https://4eti.me/';
 const ALL_CATEGORY = { id: 'all', name: 'Всички' };
 
 const documentScore = (item) => {
   if (/\.docx$/i.test(item.name)) return 0;
   if (/\.epub$/i.test(item.name)) return 1;
-  if (/\.(txt|rtf|html?|md)$/i.test(item.name)) return 2;
-  if (/\.pdf$/i.test(item.name)) return 3;
-  return 4;
+  if (/\.fb2$/i.test(item.name)) return 2;
+  if (/\.(mobi|azw3)$/i.test(item.name)) return 3;
+  if (/\.(txt|rtf|html?|md)$/i.test(item.name)) return 4;
+  if (/\.pdf$/i.test(item.name)) return 5;
+  if (/\.cbz$/i.test(item.name)) return 6;
+  return 7;
 };
 
 export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
@@ -79,7 +82,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setStatus(nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
     try {
       if (nextSource === 'mega') {
-        const loaded = await loadMegaCatalog(MEGA_LIBRARY_URL);
+        const loaded = await loadMegaCatalog(STORYTEL_LIBRARY_URL);
         setCatalog(loaded);
         setCategories([ALL_CATEGORY, ...loaded.categories]);
         setActiveCategory(ALL_CATEGORY.name);
@@ -172,7 +175,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
         // Някои стари публикации сочат към вече недостъпни хранилища.
       }
     }
-    if (!candidates.length) throw new Error('За тази книга не беше намерен достъпен PDF, EPUB или DOCX файл.');
+    if (!candidates.length) throw new Error('За тази книга не беше намерен достъпен поддържан файл.');
     candidates.sort((a, b) => documentScore(a) - documentScore(b));
     await importRemoteItem(candidates[0], { book });
   };

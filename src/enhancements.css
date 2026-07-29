@@ -2097,6 +2097,116 @@ header.minimal{justify-content:space-between;gap:16px}
   height:15px;
 }
 
+.storytel-shelf{
+  width:100%;
+  margin:4px 0 34px;
+  padding:24px 0 22px;
+  border-top:1px solid rgba(166,205,197,.16);
+  border-bottom:1px solid rgba(166,205,197,.16);
+}
+.storytel-shelf-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:16px;
+}
+.storytel-shelf-head h2{margin:5px 0 0;font-size:21px}
+.storytel-shelf-head>span{color:#78958f;font-size:11px}
+.storytel-shelf-row{
+  display:grid;
+  grid-auto-flow:column;
+  grid-auto-columns:148px;
+  gap:14px;
+  overflow-x:auto;
+  padding:2px 2px 12px;
+  scroll-snap-type:x proximity;
+  scrollbar-width:thin;
+  scrollbar-color:#36534d transparent;
+}
+.storytel-card{min-width:0;scroll-snap-align:start}
+.storytel-cover{
+  position:relative;
+  display:block;
+  width:100%;
+  padding:0;
+  border:0;
+  border-radius:7px;
+  overflow:hidden;
+  background:transparent;
+  color:inherit;
+}
+.storytel-cover:disabled{opacity:.78}
+.storytel-cover .cover-art{width:100%;aspect-ratio:2/3;border-radius:7px}
+.storytel-audio-badge{
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:27px;
+  height:27px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#e8f0ec;
+  color:#173e38;
+  box-shadow:0 3px 12px #0005;
+}
+.storytel-audio-badge svg{width:14px;height:14px}
+.storytel-play{
+  position:absolute;
+  right:9px;
+  bottom:9px;
+  width:35px;
+  height:35px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#ff6a43;
+  color:#071713;
+  box-shadow:0 5px 16px #0006;
+}
+.storytel-play svg{width:16px;height:16px}
+.storytel-card>b{
+  display:-webkit-box;
+  margin:9px 1px 0;
+  overflow:hidden;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  font-size:12px;
+  line-height:1.3;
+}
+.storytel-card>small{
+  display:block;
+  margin:4px 1px 0;
+  overflow:hidden;
+  color:#78958f;
+  font-size:9px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.storytel-shelf-row.loading i{
+  display:block;
+  aspect-ratio:2/3;
+  border-radius:7px;
+  background:linear-gradient(110deg,#122722 30%,#1c3832 45%,#122722 60%);
+  background-size:220% 100%;
+  animation:storytelLoading 1.25s ease-in-out infinite;
+}
+.storytel-retry{
+  min-height:42px;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:0 13px;
+  border:1px solid rgba(166,205,197,.22);
+  border-radius:7px;
+  background:#0b211e;
+  color:#a5beb9;
+  font-weight:700;
+}
+.storytel-retry svg{width:16px;height:16px}
+@keyframes storytelLoading{to{background-position:-220% 0}}
+
 @media(max-width:560px){
   .home-footer-tools{margin-top:34px;padding-top:14px}
   .home-footer-tools>span{font-size:8px}
@@ -2110,6 +2220,12 @@ header.minimal{justify-content:space-between;gap:16px}
     width:16px;
     height:16px;
   }
+  .storytel-shelf{margin:0 0 26px;padding:20px 0 16px}
+  .storytel-shelf-head{align-items:flex-start;margin-bottom:13px}
+  .storytel-shelf-head h2{font-size:18px}
+  .storytel-shelf-head>span{padding-top:3px;font-size:9px}
+  .storytel-shelf-row{grid-auto-columns:128px;gap:11px}
+  .storytel-card>b{font-size:11px}
 }
 
 /* Responsive source catalog: Storytel and the electronic library share one

@@ -25,9 +25,15 @@ Responsive React PWA за превръщане на потребителски �
 1. Стартирайте `START-VOXORA.bat`.
 2. Отворете адреса, показан в прозореца (обикновено `http://localhost:4173`).
 
-Приложението използва Gemini AI TTS гласовете от school-main: Kore и Leda (женски), Puck, Charon, Fenrir и Orus (мъжки). Нужен е Gemini API ключ, който се пази само в localStorage на устройството. PDF, DOCX и TXT се обработват локално.
+Приложението използва Gemini AI TTS гласовете от school-main: Kore и Leda (женски), Puck, Charon, Fenrir и Orus (мъжки). Нужен е Gemini API ключ, който се пази само в localStorage на устройството. Качените документи се обработват локално.
 
 Генерираният AI звук се възпроизвежда като 24 kHz WAV и може да се смесва с шестте фонови атмосфери.
+
+## Поддържани формати
+
+Voxora импортира EPUB, PDF, MOBI, AZW3, FB2, CBZ, TXT и DOCX. CBZ страниците
+се обработват с OCR, за да може разпознатият текст да бъде прочетен на глас.
+MOBI и AZW3 книги с DRM защита не могат да бъдат разкодирани.
 
 ## Android и iOS
 
