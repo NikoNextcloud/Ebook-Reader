@@ -91,7 +91,6 @@ function RecommendationCarousel({
     }
     let frame = 0;
     let previousTime = window.performance.now();
-    let direction = 1;
     const speed = 11;
 
     const animate = (time) => {
@@ -100,10 +99,15 @@ function RecommendationCarousel({
       previousTime = time;
 
       if (row && !pausedRef.current && !document.hidden) {
-        const maxScroll = Math.max(0, row.scrollWidth - row.clientWidth);
-        row.scrollLeft += direction * speed * (elapsed / 1000);
-        if (row.scrollLeft >= maxScroll - 1) direction = -1;
-        else if (row.scrollLeft <= 1) direction = 1;
+        row.scrollLeft += speed * (elapsed / 1000);
+        const repeatedStart = row.children[items.length];
+        const firstCard = row.firstElementChild;
+        const cycleWidth = repeatedStart && firstCard
+          ? repeatedStart.offsetLeft - firstCard.offsetLeft
+          : 0;
+        if (cycleWidth && row.scrollLeft >= cycleWidth) {
+          row.scrollLeft -= cycleWidth;
+        }
       }
       frame = window.requestAnimationFrame(animate);
     };
@@ -189,15 +193,21 @@ function RecommendationCarousel({
       onFocus={() => { pausedRef.current = true; }}
       onBlur={() => { pausedRef.current = false; }}
     >
-      {items.map((item) => {
+      {[...items, ...items].map((item, index) => {
         const title = cleanTitle(item.name);
         const isAudio = variant === 'storytel';
+        const duplicate = index >= items.length;
         return (
-          <article className="storytel-card" key={item.id || item.url}>
+          <article
+            className="storytel-card"
+            key={`${item.id || item.url}-${duplicate ? 'loop' : 'original'}`}
+            aria-hidden={duplicate ? 'true' : undefined}
+          >
             <button
               className="storytel-cover"
               onClick={() => onOpen(item)}
               disabled={!!openingId}
+              tabIndex={duplicate ? -1 : undefined}
               aria-label={`${isAudio ? 'Пусни' : 'Отвори'} ${title}`}
             >
               <Cover book={{ title, cover: covers[item.id] || item.cover }} />
@@ -234,6 +244,7 @@ function DailyShelf({
   selector,
   onOpen,
   withArtwork = false,
+  dayKey,
 }) {
   const [items, setItems] = useState([]);
   const [covers, setCovers] = useState({});
@@ -250,7 +261,7 @@ function DailyShelf({
       setCovers({});
       try {
         const catalog = await loader();
-        const featured = selector(catalog.items);
+        const featured = selector(catalog.items, 10, dayKey);
         if (!active) return;
         setItems(featured);
         setStatus(featured.length ? 'ready' : 'empty');
@@ -278,7 +289,7 @@ function DailyShelf({
       active = false;
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [loader, reload, selector, withArtwork]);
+  }, [dayKey, loader, reload, selector, withArtwork]);
 
   const open = async (item) => {
     if (openingId) return;
@@ -333,6 +344,16 @@ const loadStorytel = () => loadMegaCatalog(STORYTEL_LIBRARY_URL);
 const loadLibrary = () => loadFourEtiLibrary(FOUR_ETI_URL);
 
 export default function StorytelShelf({ onOpen, onOpenLibrary }) {
+  const [dayKey, setDayKey] = useState(() => dailyRecommendationKey());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const currentDay = dailyRecommendationKey();
+      setDayKey((previous) => (previous === currentDay ? previous : currentDay));
+    }, 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <div className="daily-recommendations">
       <DailyShelf
@@ -344,6 +365,7 @@ export default function StorytelShelf({ onOpen, onOpenLibrary }) {
         selector={selectFeaturedStorytel}
         onOpen={onOpen}
         withArtwork
+        dayKey={dayKey}
       />
       <DailyShelf
         ariaLabel="Топ 10 предложения от Библиотека"
@@ -353,6 +375,7 @@ export default function StorytelShelf({ onOpen, onOpenLibrary }) {
         loader={loadLibrary}
         selector={selectFeaturedLibrary}
         onOpen={onOpenLibrary}
+        dayKey={dayKey}
       />
     </div>
   );
