@@ -26,6 +26,7 @@ import {
   Timer,
   Upload,
   WifiOff,
+  X,
 } from 'lucide-react';
 import { AudioEnhancer, AUDIO_PROFILES } from '../services/audioEnhancer';
 import {
@@ -107,6 +108,7 @@ export default function AudiobookPlayer({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
   const [showChapters, setShowChapters] = useState(false);
+  const chapterListRef = useRef(null);
   const [carMode, setCarMode] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showAudioTools, setShowAudioTools] = useState(false);
@@ -134,6 +136,21 @@ export default function AudiobookPlayer({
     0,
   );
   const activeChapter = chapters[activeChapterIndex] || null;
+
+  useEffect(() => {
+    if (!showChapters || !chapterListRef.current) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const list = chapterListRef.current;
+      const active = list?.querySelector(`[data-chapter-index="${activeChapterIndex}"]`);
+      if (!list || !active) return;
+      list.scrollTop = Math.max(
+        0,
+        active.offsetTop - (list.clientHeight / 2) + (active.offsetHeight / 2),
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeChapterIndex, showChapters]);
+
   const transcriptCues = useMemo(() => {
     if (book.transcriptCues?.length) return book.transcriptCues;
     return buildApproximateCues(book.transcriptText, chapters, duration);
@@ -926,26 +943,50 @@ export default function AudiobookPlayer({
       )}
 
       {showChapters && chapters.length > 0 && (
-        <div className="ab-chapters">
-          <div className="ab-chapters-head">
-            <span>ГЛАВИ</span>
-            <small>{chapters.length}</small>
+        <>
+          <button
+            className="ab-chapters-backdrop"
+            type="button"
+            onClick={() => setShowChapters(false)}
+            aria-label="Затвори списъка с глави"
+          />
+          <div
+            className="ab-chapters"
+            ref={chapterListRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Глави на аудиокнигата"
+          >
+            <div className="ab-chapters-head">
+              <div>
+                <span>ГЛАВИ</span>
+                <small>{activeChapterIndex + 1} от {chapters.length}</small>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChapters(false)}
+                aria-label="Затвори списъка с глави"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+            {chapters.map((chapter, index) => (
+              <button
+                key={`${chapter.start}-${chapter.title}`}
+                data-chapter-index={index}
+                className={index === activeChapterIndex ? 'active' : ''}
+                onClick={() => {
+                  jumpTo(chapter.start);
+                  setShowChapters(false);
+                }}
+              >
+                <span>{index + 1}</span>
+                <b>{chapter.title}</b>
+                <small>{fmt(Math.max(0, chapter.end - chapter.start))}</small>
+              </button>
+            ))}
           </div>
-          {chapters.map((chapter, index) => (
-            <button
-              key={`${chapter.start}-${chapter.title}`}
-              className={index === activeChapterIndex ? 'active' : ''}
-              onClick={() => {
-                jumpTo(chapter.start);
-                setShowChapters(false);
-              }}
-            >
-              <span>{index + 1}</span>
-              <b>{chapter.title}</b>
-              <small>{fmt(Math.max(0, chapter.end - chapter.start))}</small>
-            </button>
-          ))}
-        </div>
+        </>
       )}
 
       {book.audioBookmarks?.length > 0 && (
