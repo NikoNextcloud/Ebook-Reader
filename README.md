@@ -7,6 +7,24 @@ environment variable named `ELEVENLABS_API_KEY` in Vercel Project Settings, then
 redeploy the project. Never put the real key in `.env.example`, the React source,
 GitHub, or a browser-side environment variable.
 
+## Администраторски панел и активни слушатели
+
+Панелът **Админ** показва активните слушатели, последната им книга, позиция,
+устройство и история. От него може да се спира и възстановява достъпът на
+конкретно устройство.
+
+1. Във Vercel отвори **Marketplace**, добави **Upstash Redis** към проекта и
+   разреши автоматичното добавяне на environment variables.
+2. В **Project Settings → Environment Variables** добави:
+   `VOXORA_ADMIN_PASSWORD` и `VOXORA_ADMIN_SECRET`.
+3. Преразгърни проекта.
+
+Поддържат се автоматично добавените имена `UPSTASH_REDIS_REST_URL` /
+`UPSTASH_REDIS_REST_TOKEN`, както и старите `KV_REST_API_URL` /
+`KV_REST_API_TOKEN`. Паролата и Redis ключовете никога не се изпращат в
+браузърния bundle. Активен слушател е устройство, което възпроизвежда и е
+изпратило сигнал през последните 45 секунди.
+
 Responsive React PWA за превръщане на потребителски текст в аудио преживяване.
 
 ## Стартиране

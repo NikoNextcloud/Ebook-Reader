@@ -34,6 +34,10 @@ import {
   buildApproximateCues,
   parseTimedText,
 } from '../services/transcript';
+import {
+  ACCESS_BLOCKED_EVENT,
+  reportListenerActivity,
+} from '../services/listenerPresence';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 const STILLNESS_MINUTES = 15;
@@ -95,6 +99,7 @@ export default function AudiobookPlayer({
   const activeCueRef = useRef(null);
   const onAudioSettingsRef = useRef(onAudioSettings);
   const onOfflineSettingsRef = useRef(onOfflineSettings);
+  const presenceRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(book.initialTime || 0);
   const [duration, setDuration] = useState(0);
@@ -247,6 +252,35 @@ export default function AudiobookPlayer({
     const timer = window.setInterval(() => onListening?.(1), 1000);
     return () => window.clearInterval(timer);
   }, [onListening, playing]);
+
+  presenceRef.current = {
+    state: playing ? 'playing' : 'paused',
+    book: {
+      id: book.id,
+      title: book.title,
+      type: 'audio',
+    },
+    position: currentTime,
+    duration,
+  };
+
+  useEffect(() => {
+    const report = () => reportListenerActivity(presenceRef.current);
+    report();
+    if (!playing) return undefined;
+    const timer = window.setInterval(report, 15000);
+    return () => window.clearInterval(timer);
+  }, [book.id, playing]);
+
+  useEffect(() => {
+    const onAccessBlocked = (event) => {
+      audioRef.current?.pause();
+      setPlaying(false);
+      setMessage(event.detail?.message || 'Достъпът на това устройство е спрян.');
+    };
+    window.addEventListener(ACCESS_BLOCKED_EVENT, onAccessBlocked);
+    return () => window.removeEventListener(ACCESS_BLOCKED_EVENT, onAccessBlocked);
+  }, []);
 
   useEffect(() => {
     if (!sleepMinutes) {
@@ -577,6 +611,7 @@ export default function AudiobookPlayer({
   const close = () => {
     saveProgress();
     audioRef.current?.pause();
+    reportListenerActivity({ ...presenceRef.current, state: 'stopped' });
     onClose?.(timeRef.current, durationRef.current);
   };
 
@@ -656,6 +691,7 @@ export default function AudiobookPlayer({
         onEnded={() => {
           setPlaying(false);
           saveProgress();
+          reportListenerActivity({ ...presenceRef.current, state: 'stopped' });
           onFinished?.();
         }}
       />

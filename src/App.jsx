@@ -14,6 +14,7 @@ import Home from './components/Home';
 import NowPlaying from './components/NowPlaying';
 import AudioPlayer from './components/AudioPlayer';
 import AudiobookPlayer from './components/AudiobookPlayer';
+import AdminPanel from './components/AdminPanel';
 import { AmbientAudio } from './services/ambientAudio';
 import {
   AUDIO_GESTURE_REQUIRED,
@@ -51,6 +52,10 @@ import {
   loadM4bDetails,
   normalizeAudioChapters,
 } from './services/m4bChapters';
+import {
+  ACCESS_BLOCKED_EVENT,
+  reportListenerActivity,
+} from './services/listenerPresence';
 
 const STILLNESS_MINUTES = 15;
 
@@ -97,6 +102,7 @@ export default function App() {
   const [editorReady, setEditorReady] = useState(false);
   const [draftCover, setDraftCover] = useState('');
   const [storageOpen, setStorageOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   const ambient = useRef(new AmbientAudio());
   const geminiTts = useRef(new GeminiTTS());
@@ -145,6 +151,21 @@ export default function App() {
       } : null),
     [books, currentBookId, draftCover, text],
   );
+  const textPresenceRef = useRef(null);
+  textPresenceRef.current = currentBook ? {
+    state: status === 'speaking'
+      ? 'playing'
+      : status === 'paused'
+        ? 'paused'
+        : 'stopped',
+    book: {
+      id: currentBook.id,
+      title: currentBook.title,
+      type: 'text',
+    },
+    position: (mins * 60 * progress) / 100,
+    duration: mins * 60,
+  } : null;
 
   useEffect(() => { chaptersRef.current = chapters; }, [chapters]);
   useEffect(() => { activeChapterRef.current = activeChapter; }, [activeChapter]);
@@ -205,6 +226,30 @@ export default function App() {
     const id = setInterval(() => addListening(1), 1000);
     return () => { clearInterval(id); flushListening(); setStats(getStats()); };
   }, [status]);
+
+  useEffect(() => {
+    if (audioBook || !currentBook || !['speaking', 'paused', 'stopped'].includes(status)) {
+      return undefined;
+    }
+    const report = () => reportListenerActivity(textPresenceRef.current);
+    report();
+    if (status !== 'speaking') return undefined;
+    const timer = window.setInterval(report, 15000);
+    return () => window.clearInterval(timer);
+  }, [audioBook, currentBook?.id, status]);
+
+  useEffect(() => {
+    const onAccessBlocked = (event) => {
+      geminiTts.current.stop();
+      elevenTts.current.stop();
+      ambient.current.stop();
+      setVoiceEnergy(0);
+      setStatus('stopped');
+      setMessage(event.detail?.message || 'Достъпът на това устройство е спрян.');
+    };
+    window.addEventListener(ACCESS_BLOCKED_EVENT, onAccessBlocked);
+    return () => window.removeEventListener(ACCESS_BLOCKED_EVENT, onAccessBlocked);
+  }, []);
 
   const setText = (value) => {
     setTextState(value);
@@ -1120,6 +1165,7 @@ export default function App() {
           onRemove={deleteBook}
           onCoverChange={changeBookCover}
           onOpenStorage={() => setStorageOpen(true)}
+          onOpenAdmin={() => setAdminOpen(true)}
         />
       ) : (
         <main>
@@ -1318,6 +1364,7 @@ export default function App() {
           onStatus={setMessage}
         />
       )}
+      <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
       {view === 'create' && <footer>VOXORA · {ttsProvider === 'elevenlabs' ? 'ElevenLabs Multilingual v2' : 'Gemini AI гласове'}</footer>}
     </>
   );

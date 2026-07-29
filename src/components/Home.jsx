@@ -3,6 +3,7 @@ import {
   HardDrive,
   Plus,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -30,7 +31,7 @@ const inProgress = (book) => (book.chunkIndex > 0 || book.audioPosition > 0) && 
 
 export default function Home({
   books, stats, queue, onOpen, onNew, onRate, onToggleFavorite, onToggleFinished, onQueue, onRemove,
-  onCoverChange, onOpenStorage,
+  onCoverChange, onOpenStorage, onOpenAdmin,
 }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -113,6 +114,10 @@ export default function Home({
           <h1>Слушай на своя ритъм.</h1>
         </div>
         <div className="home-actions">
+          <button className="home-admin" onClick={onOpenAdmin}>
+            <ShieldCheck aria-hidden="true" />
+            Админ
+          </button>
           <button className="home-storage" onClick={onOpenStorage}>
             <HardDrive aria-hidden="true" />
             Памет
