@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TextInput from './components/TextInput';
 import VoiceSelector from './components/VoiceSelector';
-import TtsProviderSelector from './components/TtsProviderSelector';
-import ElevenVoiceSelector from './components/ElevenVoiceSelector';
 import SpeedControl from './components/SpeedControl';
 import MusicSelector from './components/MusicSelector';
 import SleepTimer from './components/SleepTimer';
@@ -21,10 +19,6 @@ import {
   GeminiTTS,
   splitTextForSpeech,
 } from './services/geminiTtsService';
-import {
-  ELEVEN_AUDIO_GESTURE_REQUIRED,
-  ElevenLabsTTS,
-} from './services/elevenLabsTtsService';
 import {
   loadBooks, saveBook, saveAudioBook, updatePosition, updateAudioPosition,
   updateTitle, removeBook, makeTitle, setBookField, addBookmark, removeBookmark,
@@ -66,9 +60,6 @@ export default function App() {
   const startBooks = useRef(loadBooks()).current;
   const [view, setView] = useState(startBooks.length ? 'home' : 'create');
   const [text, setTextState] = useState(sample);
-  const [ttsProvider, setTtsProvider] = useState(initial.ttsProvider);
-  const [elevenPrimaryVoice, setElevenPrimaryVoice] = useState(initial.elevenPrimaryVoice);
-  const [elevenSecondaryVoice, setElevenSecondaryVoice] = useState(initial.elevenSecondaryVoice);
   const [alternateVoices, setAlternateVoices] = useState(initial.alternateVoices !== false);
   const [voice, setVoice] = useState(initial.voice);
   const [gender, setGender] = useState(initial.gender);
@@ -106,14 +97,11 @@ export default function App() {
 
   const ambient = useRef(new AmbientAudio());
   const geminiTts = useRef(new GeminiTTS());
-  const elevenTts = useRef(new ElevenLabsTTS());
   const geminiPreviewTts = useRef(new GeminiTTS());
-  const elevenPreviewTts = useRef(new ElevenLabsTTS());
   const geminiDownloadTts = useRef(new GeminiTTS());
-  const elevenDownloadTts = useRef(new ElevenLabsTTS());
-  const tts = ttsProvider === 'elevenlabs' ? elevenTts : geminiTts;
-  const previewTts = ttsProvider === 'elevenlabs' ? elevenPreviewTts : geminiPreviewTts;
-  const downloadTts = ttsProvider === 'elevenlabs' ? elevenDownloadTts : geminiDownloadTts;
+  const tts = geminiTts;
+  const previewTts = geminiPreviewTts;
+  const downloadTts = geminiDownloadTts;
   const fileTitle = useRef('');
   const chaptersRef = useRef(null);
   const activeChapterRef = useRef(0);
@@ -177,20 +165,14 @@ export default function App() {
 
   useEffect(() => () => {
     geminiTts.current.stop();
-    elevenTts.current.stop();
     geminiPreviewTts.current.stop();
-    elevenPreviewTts.current.stop();
     geminiDownloadTts.current.stop();
-    elevenDownloadTts.current.stop();
     ambient.current.stop();
     audioBookUrls.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
   useEffect(() => ambient.current.setVolume(volume), [volume]);
   useEffect(() => localStorage.setItem('gemini_api_key', apiKey), [apiKey]);
   useEffect(() => saveSettings({
-    ttsProvider,
-    elevenPrimaryVoice,
-    elevenSecondaryVoice,
     alternateVoices,
     voice,
     gender,
@@ -199,9 +181,6 @@ export default function App() {
     genre,
     volume,
   }), [
-    ttsProvider,
-    elevenPrimaryVoice,
-    elevenSecondaryVoice,
     alternateVoices,
     voice,
     gender,
@@ -241,7 +220,6 @@ export default function App() {
   useEffect(() => {
     const onAccessBlocked = (event) => {
       geminiTts.current.stop();
-      elevenTts.current.stop();
       ambient.current.stop();
       setVoiceEnergy(0);
       setStatus('stopped');
@@ -270,13 +248,12 @@ export default function App() {
 
   const beginPlayback = async (sourceText, startChunk, bookId) => {
     if (!sourceText.trim()) return;
-    if (ttsProvider === 'gemini' && !apiKey.trim()) { setMessage('Добави Gemini API ключа, за да използваш AI гласовете.'); setPlayerOpen(false); return; }
-    if (ttsProvider === 'elevenlabs' && !elevenPrimaryVoice) { setMessage('Избери ElevenLabs глас. Ако няма гласове, провери ELEVENLABS_API_KEY във Vercel.'); setPlayerOpen(false); return; }
+    if (!apiKey.trim()) { setMessage('Добави Gemini API ключа, за да използваш AI гласовете.'); setPlayerOpen(false); return; }
 
     previewTts.current.stop();
     setPreviewing('');
     setPlayerOpen(true);
-    setMessage(ttsProvider === 'elevenlabs' ? 'ElevenLabs подготвя разказвача…' : 'AI гласът се подготвя…');
+    setMessage('AI гласът се подготвя…');
     setStatus('loading');
     setProgress(0);
     setActiveChunk(startChunk || 0);
@@ -287,8 +264,6 @@ export default function App() {
       await tts.current.generate(sourceText, {
         apiKey: apiKey.trim(),
         voiceName: voice,
-        primaryVoiceId: elevenPrimaryVoice,
-        secondaryVoiceId: elevenSecondaryVoice,
         gender,
         alternateVoices,
         rate,
@@ -360,7 +335,7 @@ export default function App() {
     } catch (error) {
       ambient.current.stop();
       setVoiceEnergy(0);
-      if (error?.code === AUDIO_GESTURE_REQUIRED || error?.code === ELEVEN_AUDIO_GESTURE_REQUIRED) {
+      if (error?.code === AUDIO_GESTURE_REQUIRED) {
         setStatus('paused');
         setMessage(error.message);
         return;
@@ -410,17 +385,15 @@ export default function App() {
   const retry = () => beginPlayback(text, tts.current.currentChunk || 0, currentBookId);
 
   const preview = async (name) => {
-    if (ttsProvider === 'gemini' && !apiKey.trim()) { setMessage('Добави Gemini API ключ, за да чуеш гласа.'); return; }
+    if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да чуеш гласа.'); return; }
     previewTts.current.stop();
     setPreviewing(name);
-    if (ttsProvider === 'gemini') setVoice(name);
+    setVoice(name);
     try {
       await previewTts.current.unlockAudio().catch(() => {});
       await previewTts.current.generate('Здравей! Аз съм твоят разказвач. Така ще звучи текстът, който избереш.', {
         apiKey: apiKey.trim(),
         voiceName: name,
-        primaryVoiceId: name,
-        secondaryVoiceId: '',
         alternateVoices: false,
         rate: 1,
         language,
@@ -440,18 +413,6 @@ export default function App() {
   const next = () => tts.current.next();
   const prev = () => tts.current.prev();
   const changeSpeed = (value) => { setRate(value); tts.current.setPlaybackRate(value); };
-  const changeTtsProvider = (next) => {
-    geminiTts.current.stop();
-    elevenTts.current.stop();
-    geminiPreviewTts.current.stop();
-    elevenPreviewTts.current.stop();
-    ambient.current.stop();
-    setStatus('idle');
-    setMessage('');
-    setPreviewing('');
-    setVoiceEnergy(0);
-    setTtsProvider(next);
-  };
 
   // ——— Отметки ———
   const bookmark = () => {
@@ -908,7 +869,7 @@ export default function App() {
     setProgress(0);
     setPosition(null);
     setActiveChunk(-1);
-    if (ttsProvider === 'elevenlabs' || apiKey.trim()) beginPlayback(chapters[index].text, 0, currentBookId);
+    if (apiKey.trim()) beginPlayback(chapters[index].text, 0, currentBookId);
   };
   const toggleCurrentFavorite = () => {
     const record = ensureSaved();
@@ -923,16 +884,13 @@ export default function App() {
   // ——— Сваляне / офлайн / резервно копие ———
   const download = async () => {
     if (!text.trim()) return;
-    if (ttsProvider === 'gemini' && !apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш аудиото.'); return; }
-    if (ttsProvider === 'elevenlabs' && !elevenPrimaryVoice) { setMessage('Избери ElevenLabs глас.'); return; }
+    if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш аудиото.'); return; }
     setDownloading(true);
     setMessage('Подготвям аудио файла…');
     try {
       downloadTts.current.prepare(text, {
         apiKey: apiKey.trim(),
         voiceName: voice,
-        primaryVoiceId: elevenPrimaryVoice,
-        secondaryVoiceId: elevenSecondaryVoice,
         gender,
         alternateVoices,
         rate,
@@ -942,7 +900,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${(fileTitle.current || makeTitle(text, 'voxora')).replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'voxora'}.${ttsProvider === 'elevenlabs' ? 'mp3' : 'wav'}`;
+      link.download = `${(fileTitle.current || makeTitle(text, 'voxora')).replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'voxora'}.wav`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -957,8 +915,7 @@ export default function App() {
 
   const cacheOffline = async () => {
     if (!text.trim()) return;
-    if (ttsProvider === 'gemini' && !apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш книгата офлайн.'); return; }
-    if (ttsProvider === 'elevenlabs' && !elevenPrimaryVoice) { setMessage('Избери ElevenLabs глас.'); return; }
+    if (!apiKey.trim()) { setMessage('Добави Gemini API ключ, за да свалиш книгата офлайн.'); return; }
     setCaching(true);
     setCacheProgress(0);
     setMessage('Генерирам звука за офлайн слушане…');
@@ -966,8 +923,6 @@ export default function App() {
       downloadTts.current.prepare(text, {
         apiKey: apiKey.trim(),
         voiceName: voice,
-        primaryVoiceId: elevenPrimaryVoice,
-        secondaryVoiceId: elevenSecondaryVoice,
         gender,
         alternateVoices,
         rate,
@@ -1101,7 +1056,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [status, text, apiKey, voice, elevenPrimaryVoice, elevenSecondaryVoice, ttsProvider, rate, language, music]);
+  }, [status, text, apiKey, voice, rate, language, music]);
 
   // ——— Медийни контроли ———
   useEffect(() => {
@@ -1109,8 +1064,8 @@ export default function App() {
     try {
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title: currentBook?.title || 'Voxora',
-        artist: currentBook?.author || `Глас ${ttsProvider === 'elevenlabs' ? 'ElevenLabs' : voice}`,
-        album: ttsProvider === 'elevenlabs' ? 'Voxora ElevenLabs Reader' : 'Voxora AI Reader',
+        artist: currentBook?.author || `Глас ${voice}`,
+        album: 'Voxora AI Reader',
       });
     } catch { /* MediaMetadata може да липсва */ }
     navigator.mediaSession.playbackState = status === 'speaking' ? 'playing' : status === 'paused' ? 'paused' : 'none';
@@ -1126,7 +1081,7 @@ export default function App() {
     Object.entries(handlers).forEach(([action, handler]) => {
       try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* неподдържано */ }
     });
-  }, [status, currentBookId, voice, ttsProvider, books]);
+  }, [status, currentBookId, voice, books]);
 
   const wordFraction = position && position.chunk === activeChunk && position.chunkDuration
     ? position.chunkTime / position.chunkDuration
@@ -1140,7 +1095,7 @@ export default function App() {
           {view === 'create' && books.length > 0 && (
             <button className="nav-home" onClick={() => { setView('home'); setStats(getStats()); }}>← Библиотека</button>
           )}
-          <span className="status-dot">● {ttsProvider === 'elevenlabs' ? 'ElevenLabs Multilingual v2' : 'Gemini AI Audio'}</span>
+          <span className="status-dot">● Gemini AI Audio</span>
           <button className="profile" aria-label="Профил">В</button>
         </div>
       </header>
@@ -1200,19 +1155,7 @@ export default function App() {
                 onRemoveBookmark={deleteBookmark}
               />
               <ChapterSelector chapters={chapters} active={activeChapter} onSelect={selectChapter} />
-              <TtsProviderSelector value={ttsProvider} onChange={changeTtsProvider} />
-              {ttsProvider === 'gemini' ? (
-                <VoiceSelector selected={voice} onSelect={setVoice} gender={gender} onGender={setGender} apiKey={apiKey} onApiKey={setApiKey} onPreview={preview} previewing={previewing} />
-              ) : (
-                <ElevenVoiceSelector
-                  primary={elevenPrimaryVoice}
-                  secondary={elevenSecondaryVoice}
-                  onPrimary={setElevenPrimaryVoice}
-                  onSecondary={setElevenSecondaryVoice}
-                  onPreview={preview}
-                  previewing={previewing}
-                />
-              )}
+              <VoiceSelector selected={voice} onSelect={setVoice} gender={gender} onGender={setGender} apiKey={apiKey} onApiKey={setApiKey} onPreview={preview} previewing={previewing} />
               <label className="alt-voices">
                 <input type="checkbox" checked={alternateVoices} onChange={(event) => setAlternateVoices(event.target.checked)} />
                 <span>
@@ -1245,7 +1188,7 @@ export default function App() {
               {heavy && (
                 <p className="quota-note">
                   ⚠ Дълъг текст: ~{chunks.length} AI заявки (~{mins} мин. звук).
-                  {ttsProvider === 'elevenlabs' ? ' ElevenLabs таксува генерираните знаци.' : ' Може да изразходи дневния лимит наведнъж.'}
+                  {' Може да изразходи дневния лимит наведнъж.'}
                 </p>
               )}
               {message && (
@@ -1258,7 +1201,7 @@ export default function App() {
                 <button className="start" disabled={!text.trim() || status === 'loading'} onClick={() => speak(true)}>
                   <span>{status === 'loading' ? '…' : '▶'}</span>
                   <div>
-                    <b>{status === 'loading' ? (ttsProvider === 'elevenlabs' ? 'Подготвям ElevenLabs…' : 'Генерирам AI гласа…') : 'Започни четенето'}</b>
+                    <b>{status === 'loading' ? 'Генерирам AI гласа…' : 'Започни четенето'}</b>
                     <small>{words} думи · около {mins} мин.</small>
                   </div>
                 </button>
@@ -1365,7 +1308,7 @@ export default function App() {
         />
       )}
       <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
-      {view === 'create' && <footer>VOXORA · {ttsProvider === 'elevenlabs' ? 'ElevenLabs Multilingual v2' : 'Gemini AI гласове'}</footer>}
+      {view === 'create' && <footer>VOXORA · Gemini AI гласове</footer>}
     </>
   );
 }

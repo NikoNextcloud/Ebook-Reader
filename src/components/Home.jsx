@@ -114,14 +114,6 @@ export default function Home({
           <h1>Слушай на своя ритъм.</h1>
         </div>
         <div className="home-actions">
-          <button className="home-admin" onClick={onOpenAdmin}>
-            <ShieldCheck aria-hidden="true" />
-            Админ
-          </button>
-          <button className="home-storage" onClick={onOpenStorage}>
-            <HardDrive aria-hidden="true" />
-            Памет
-          </button>
           <button className="new-book" onClick={onNew}>
             <Plus aria-hidden="true" />
             Нов текст / книга
@@ -260,6 +252,20 @@ export default function Home({
           </section>
         ))
       )}
+
+      <footer className="home-footer-tools">
+        <span>VOXORA · ИНСТРУМЕНТИ</span>
+        <nav aria-label="Инструменти на библиотеката">
+          <button className="home-storage" onClick={onOpenStorage}>
+            <HardDrive aria-hidden="true" />
+            Памет
+          </button>
+          <button className="home-admin" onClick={onOpenAdmin}>
+            <ShieldCheck aria-hidden="true" />
+            Админ
+          </button>
+        </nav>
+      </footer>
     </div>
   );
 }

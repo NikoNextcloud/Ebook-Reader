@@ -2063,6 +2063,55 @@ header.minimal{justify-content:space-between;gap:16px}
 }
 .library-clear-filters svg{width:16px;height:16px}
 
+.home-footer-tools{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin-top:48px;
+  padding:18px 0 0;
+  border-top:1px solid rgba(166,205,197,.16);
+}
+.home-footer-tools>span{
+  color:#6f8d87;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:0;
+}
+.home-footer-tools nav{display:flex;align-items:center;gap:8px}
+.home-footer-tools .home-storage,.home-footer-tools .home-admin{
+  min-height:38px;
+  padding:0 11px;
+  border-color:rgba(166,205,197,.16);
+  color:#78958f;
+  font-size:11px;
+  font-weight:700;
+}
+.home-footer-tools .home-admin{color:#8f817d}
+.home-footer-tools .home-storage:hover,.home-footer-tools .home-admin:hover{
+  border-color:rgba(255,129,87,.48);
+  color:#ff9a78;
+}
+.home-footer-tools .home-storage svg,.home-footer-tools .home-admin svg{
+  width:15px;
+  height:15px;
+}
+
+@media(max-width:560px){
+  .home-footer-tools{margin-top:34px;padding-top:14px}
+  .home-footer-tools>span{font-size:8px}
+  .home-footer-tools .home-storage,.home-footer-tools .home-admin{
+    width:auto;
+    min-height:40px;
+    padding:0 10px;
+    font-size:10px;
+  }
+  .home-footer-tools .home-storage svg,.home-footer-tools .home-admin svg{
+    width:16px;
+    height:16px;
+  }
+}
+
 /* Responsive source catalog: Storytel and the electronic library share one
    calm, touch-friendly layout while keeping their own identity. */
 .workspace.source-workspace{
