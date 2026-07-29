@@ -9,6 +9,27 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), {
   },
 });
 
+const fallbackVoices = () => [
+  {
+    id: process.env.ELEVENLABS_FEMALE_VOICE_ID || '21m00Tcm4TlvDq8ikWAM',
+    name: process.env.ELEVENLABS_FEMALE_VOICE_NAME || 'Rachel',
+    category: 'default',
+    gender: 'female',
+    accent: 'multilingual',
+    bulgarian: false,
+    previewUrl: '',
+  },
+  {
+    id: process.env.ELEVENLABS_MALE_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb',
+    name: process.env.ELEVENLABS_MALE_VOICE_NAME || 'George',
+    category: 'default',
+    gender: 'male',
+    accent: 'multilingual',
+    bulgarian: false,
+    previewUrl: '',
+  },
+];
+
 export async function GET() {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
@@ -44,14 +65,20 @@ export async function GET() {
 
     if (!upstream) {
       const unauthorized = /HTTP 401|HTTP 403/.test(lastDetail);
+      const missingVoicePermission = /missing_permissions|voices_read/i.test(lastDetail);
+      if (missingVoicePermission) {
+        return json({
+          configured: true,
+          limited: true,
+          message: 'Използвам резервните гласове Rachel и George. За пълния списък включи правото Voices → Read в ElevenLabs API ключа.',
+          voices: fallbackVoices(),
+        });
+      }
       return json({
         configured: true,
-        // Показваме и точния отговор на ElevenLabs, за да се вижда дали ключът е
-        // грешен, изтекъл, без права, или профилът е блокиран.
         message: unauthorized
-          ? `ElevenLabs отказа ключа (${lastDetail}). Провери дали ELEVENLABS_API_KEY във Vercel е активен, има права "Text to Speech" и "Voices" и дали проектът е преразгърнат след добавянето му.`
-          : `ElevenLabs не върна списъка с гласове (${lastDetail || 'няма отговор'}).`,
-        detail: lastDetail,
+          ? 'ElevenLabs отказа API ключа. Провери дали е активен и има права Text to Speech и Voices → Read.'
+          : 'ElevenLabs не върна списъка с гласове. Опитай отново след малко.',
         voices: [],
       }, unauthorized ? 401 : 502);
     }

@@ -51,7 +51,10 @@ export const fetchElevenVoices = async () => {
   const response = await fetch('/api/eleven-voices', { headers: { Accept: 'application/json' } });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message || 'Гласовете от ElevenLabs не могат да се заредят.');
-  return data.voices || [];
+  return {
+    voices: data.voices || [],
+    warning: data.limited ? data.message || '' : '',
+  };
 };
 
 export class ElevenLabsTTS {

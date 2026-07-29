@@ -1,5 +1,16 @@
 import { useMemo, useState } from 'react';
 import {
+  ArrowLeft,
+  BookOpenText,
+  ChevronRight,
+  FileText,
+  Headphones,
+  Heart,
+  LibraryBig,
+  Search,
+  Sparkles,
+} from 'lucide-react';
+import {
   audioStreamUrl,
   discoverFourEtiPage,
   downloadRemoteItem,
@@ -155,7 +166,6 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     for (const sourceItem of discovered.items) {
       try {
         // Източниците са малко; проверяваме ги последователно и предпочитаме чист текстов формат.
-        // eslint-disable-next-line no-await-in-loop
         const resolved = await openRemoteCatalog(sourceItem.url, sourceItem.name);
         candidates.push(...resolved.items);
       } catch {
@@ -204,22 +214,32 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
         <div className="source-heading">
           <span className="eyebrow">01 · ИЗТОЧНИК</span>
           <h2>Откъде е книгата?</h2>
+          <p>Избери своя текст, аудиокнига или заглавие от библиотеката.</p>
         </div>
         <div className="source-options">
           <button onClick={() => chooseSource('manual')}>
-            <span>Aa</span>
-            <b>Моят текст</b>
-            <small>Текст или файл</small>
+            <span><FileText aria-hidden="true" /></span>
+            <span className="source-option-copy">
+              <b>Моят текст</b>
+              <small>Постави текст или качи собствен файл</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
           </button>
           <button onClick={() => chooseSource('mega')}>
-            <span>▶</span>
-            <b>Storytel</b>
-            <small>Аудиокниги</small>
+            <span><Headphones aria-hidden="true" /></span>
+            <span className="source-option-copy">
+              <b>Storytel</b>
+              <small>Избери аудиокнига и започни веднага</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
           </button>
           <button onClick={() => chooseSource('4eti')}>
-            <span>▤</span>
-            <b>Библиотека</b>
-            <small>Електронни книги</small>
+            <span><LibraryBig aria-hidden="true" /></span>
+            <span className="source-option-copy">
+              <b>Библиотека</b>
+              <small>Открий електронни книги по категории</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -227,82 +247,103 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   }
 
   return (
-    <div className="source-library">
+    <div className={`source-library source-library-${source}`}>
       <div className="source-library-head">
-        <button onClick={backToSources} aria-label="Назад към източниците">←</button>
+        <button onClick={backToSources} aria-label="Назад към източниците"><ArrowLeft aria-hidden="true" /></button>
+        <span className="source-library-mark" aria-hidden="true">
+          {source === 'mega' ? <Headphones /> : <LibraryBig />}
+        </span>
         <div>
           <span className="eyebrow">02 · {source === 'mega' ? 'STORYTEL' : 'БИБЛИОТЕКА'}</span>
           <h2>Избери категория и книга</h2>
+          <p>{source === 'mega' ? 'Аудиокниги, готови за слушане' : 'Електронни книги за твоя AI разказвач'}</p>
         </div>
       </div>
 
-      {categories.length > 0 && (
-        <div className="source-tabs" role="tablist" aria-label="Категории">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              role="tab"
-              aria-selected={category.name === activeCategory}
-              className={category.name === activeCategory ? 'active' : ''}
-              onClick={() => chooseCategory(category)}
-            >
-              {category.name}
-              {category.count ? <small>{category.count}</small> : null}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="source-search-row">
-        <input
-          type="search"
-          value={search}
-          placeholder="Търси заглавие или автор"
-          onChange={(event) => setSearch(event.target.value)}
-          disabled={!catalog}
-        />
-        <button
-          className={showFavorites ? 'on' : ''}
-          onClick={() => setShowFavorites((value) => !value)}
-          aria-label={showFavorites ? 'Покажи всички книги' : 'Покажи само любимите'}
-          title={showFavorites ? 'Покажи всички' : 'Само любими'}
-          disabled={!catalog}
-        >
-          ♥
-        </button>
-        <span>{busy ? '…' : visibleItems.length}</span>
-      </div>
-
-      <div className={`source-books ${busy && !catalog ? 'loading' : ''}`}>
-        {!catalog && <p>{status}</p>}
-        {catalog && visibleItems.slice(0, 100).map((item) => {
-          const favorite = favoriteKeys.has(remoteBookKey(source, item));
-          return (
-            <div className="source-book-row" key={item.id}>
-              <button className="source-book-open" onClick={() => chooseBook(item)} disabled={busy}>
-                <span className={`source-book-icon ${item.kind}`}>{item.kind === 'audio' ? '▶' : 'Aa'}</span>
-                <span>
-                  <b>{item.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '')}</b>
-                  <small>{[
-                    source === 'mega' ? item.category : activeCategory,
-                    formatRemoteSize(item.size),
-                  ].filter(Boolean).join(' · ')}</small>
-                </span>
-                <i>›</i>
-              </button>
-              <button
-                className={`source-book-favorite ${favorite ? 'on' : ''}`}
-                onClick={() => toggleFavorite(item)}
-                aria-label={favorite ? 'Премахни от любими' : 'Добави в любими'}
-                title={favorite ? 'Премахни от любими' : 'Добави в любими'}
-              >
-                ♥
-              </button>
+      <div className="source-catalog-shell">
+        <aside className="source-categories">
+          <div className="source-categories-title">
+            <span>Категории</span>
+            <small>{categories.length}</small>
+          </div>
+          {categories.length > 0 && (
+            <div className="source-tabs" role="tablist" aria-label="Категории">
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={category.name === activeCategory}
+                  className={category.name === activeCategory ? 'active' : ''}
+                  onClick={() => chooseCategory(category)}
+                >
+                  <span>{category.name}</span>
+                  {category.count ? <small>{category.count}</small> : null}
+                </button>
+              ))}
             </div>
-          );
-        })}
-        {catalog && !visibleItems.length && !busy && <p>Няма книги по това търсене.</p>}
+          )}
+        </aside>
+
+        <section className="source-catalog-main">
+          <div className="source-search-row">
+            <label>
+              <Search aria-hidden="true" />
+              <input
+                type="search"
+                value={search}
+                placeholder="Търси заглавие или автор"
+                onChange={(event) => setSearch(event.target.value)}
+                disabled={!catalog}
+              />
+            </label>
+            <button
+              className={showFavorites ? 'on' : ''}
+              onClick={() => setShowFavorites((value) => !value)}
+              aria-label={showFavorites ? 'Покажи всички книги' : 'Покажи само любимите'}
+              title={showFavorites ? 'Покажи всички' : 'Само любими'}
+              disabled={!catalog}
+            >
+              <Heart fill={showFavorites ? 'currentColor' : 'none'} aria-hidden="true" />
+            </button>
+            <span><strong>{busy ? '…' : visibleItems.length}</strong><small>резултата</small></span>
+          </div>
+
+          <div className={`source-books ${busy && !catalog ? 'loading' : ''}`}>
+            {!catalog && <p><Sparkles aria-hidden="true" />{status}</p>}
+            {catalog && visibleItems.slice(0, 100).map((item) => {
+              const favorite = favoriteKeys.has(remoteBookKey(source, item));
+              return (
+                <article className="source-book-row" key={item.id}>
+                  <button className="source-book-open" onClick={() => chooseBook(item)} disabled={busy}>
+                    <span className={`source-book-icon ${item.kind}`}>
+                      {item.kind === 'audio' ? <Headphones aria-hidden="true" /> : <BookOpenText aria-hidden="true" />}
+                    </span>
+                    <span className="source-book-copy">
+                      <b>{item.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '')}</b>
+                      <small>{[
+                        source === 'mega' ? item.category : activeCategory,
+                        formatRemoteSize(item.size),
+                      ].filter(Boolean).join(' · ')}</small>
+                    </span>
+                    <ChevronRight aria-hidden="true" />
+                  </button>
+                  <button
+                    className={`source-book-favorite ${favorite ? 'on' : ''}`}
+                    onClick={() => toggleFavorite(item)}
+                    aria-label={favorite ? 'Премахни от любими' : 'Добави в любими'}
+                    title={favorite ? 'Премахни от любими' : 'Добави в любими'}
+                  >
+                    <Heart fill={favorite ? 'currentColor' : 'none'} aria-hidden="true" />
+                  </button>
+                </article>
+              );
+            })}
+            {catalog && !visibleItems.length && !busy && (
+              <p><Search aria-hidden="true" />Няма книги по това търсене.</p>
+            )}
+          </div>
+        </section>
       </div>
 
       {progress ? (

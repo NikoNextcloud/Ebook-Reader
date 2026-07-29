@@ -18,13 +18,15 @@ export default function ElevenVoiceSelector({
   const [voices, setVoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     let active = true;
     fetchElevenVoices()
-      .then((items) => {
+      .then(({ voices: items, warning }) => {
         if (!active) return;
         setVoices(items);
+        setNotice(warning);
         setError(items.length ? '' : 'Няма налични гласове в ElevenLabs профила.');
       })
       .catch((reason) => active && setError(reason.message))
@@ -60,6 +62,7 @@ export default function ElevenVoiceSelector({
       <h3>Два разказвача с естествена интонация</h3>
       {loading && <p className="eleven-state">Зареждам гласовете от ElevenLabs…</p>}
       {error && <p className="eleven-state error">{error}</p>}
+      {notice && <p className="eleven-state notice">{notice}</p>}
       {!loading && voices.length > 0 && (
         <div className="eleven-selectors">
           <label>
