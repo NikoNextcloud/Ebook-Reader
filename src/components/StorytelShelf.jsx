@@ -131,6 +131,7 @@ export function RecommendationCarousel({
   };
 
   const startDrag = (event) => {
+    if (event.pointerType === 'mouse' && event.target.closest('.storytel-cover')) return;
     if (event.pointerType !== 'mouse') {
       pausedRef.current = true;
       return;
@@ -205,6 +206,19 @@ export function RecommendationCarousel({
             <button
               className="storytel-cover"
               onClick={() => onOpen(item)}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                pausedRef.current = true;
+              }}
+              onPointerUp={(event) => {
+                event.stopPropagation();
+                pausedRef.current = false;
+              }}
+              onPointerCancel={(event) => {
+                event.stopPropagation();
+                pausedRef.current = false;
+              }}
+              onPointerLeave={() => { pausedRef.current = false; }}
               disabled={!!openingId}
               tabIndex={duplicate ? -1 : undefined}
               aria-label={`${isAudio ? 'Пусни' : 'Отвори'} ${title}`}

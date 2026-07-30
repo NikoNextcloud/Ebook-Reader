@@ -83,6 +83,7 @@ describe('RecommendationCarousel', () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const root = createRoot(host);
+    const onOpen = vi.fn();
     const items = [
       { id: 'one', kind: 'audio', name: 'Първа книга.m4b' },
       { id: 'two', kind: 'audio', name: 'Втора книга.m4b' },
@@ -93,7 +94,7 @@ describe('RecommendationCarousel', () => {
         items,
         covers: {},
         openingId: '',
-        onOpen: () => {},
+        onOpen,
         variant: 'storytel',
       }));
     });
@@ -105,6 +106,11 @@ describe('RecommendationCarousel', () => {
       frame(window.performance.now() + 1000);
     });
     expect(row.scrollLeft).toBeGreaterThan(0);
+
+    await act(async () => {
+      row.querySelector('.storytel-cover').click();
+    });
+    expect(onOpen).toHaveBeenCalledWith(items[0]);
 
     await act(async () => root.unmount());
   });
