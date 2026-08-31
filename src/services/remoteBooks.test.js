@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  audioOnlyCatalog,
   extractDownloadLinks,
   extractFourEtiCategories,
   extractFourEtiBookLinks,
@@ -8,6 +9,7 @@ import {
   isMegaUrl,
   isYandexPublicUrl,
   normalizeRemoteUrl,
+  STORYTEL_LIBRARY_URL,
 } from './remoteBooks';
 
 describe('remote book links', () => {
@@ -59,5 +61,21 @@ describe('remote book links', () => {
     expect(normalizeRemoteUrl('4eti.me/book')).toBe('https://4eti.me/book');
     expect(formatRemoteSize(748067)).toBe('731 KB');
     expect(formatRemoteSize(150 * 1024 * 1024)).toBe('150 MB');
+  });
+
+  it('uses the current Storytel folder and hides non-audio helper files', () => {
+    expect(STORYTEL_LIBRARY_URL).toContain('/folder/SWAVQIza#');
+    const catalog = audioOnlyCatalog({
+      title: 'Storytel',
+      items: [
+        { id: 'audio', kind: 'audio', category: 'Романи' },
+        { id: 'info', kind: 'document', category: 'Други' },
+      ],
+    });
+
+    expect(catalog.items.map((item) => item.id)).toEqual(['audio']);
+    expect(catalog.categories).toEqual([
+      { id: 'mega-audio-category-0', name: 'Романи', count: 1 },
+    ]);
   });
 });

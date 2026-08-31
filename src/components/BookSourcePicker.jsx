@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
+  audioOnlyCatalog,
   audioStreamUrl,
   downloadRemoteItem,
   downloadRemoteArtwork,
@@ -70,7 +71,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setStatus(nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
     try {
       if (nextSource === 'mega') {
-        const loaded = await loadMegaCatalog(STORYTEL_LIBRARY_URL);
+        const loaded = audioOnlyCatalog(await loadMegaCatalog(STORYTEL_LIBRARY_URL));
         setCatalog(loaded);
         setCategories([ALL_CATEGORY, ...loaded.categories]);
         setActiveCategory(ALL_CATEGORY.name);

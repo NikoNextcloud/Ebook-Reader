@@ -2,7 +2,13 @@ const DOCUMENT_RE = /\.(txt|md|markdown|rtf|html?|docx|pdf|epub|mobi|azw3|fb2|cb
 const AUDIO_RE = /\.(m4b|m4a|mp3|aac)$/i;
 const fourEtiCache = new Map();
 const megaCatalogCache = new Map();
-export const STORYTEL_LIBRARY_URL = 'https://mega.nz/folder/A3QgXZTI#1km3sx2JBYE_xIGoDyV_sQ';
+const DEFAULT_STORYTEL_LIBRARY_URL = 'https://mega.nz/folder/SWAVQIza#HFtrZx70YpMX2WxpD0WiLA';
+
+// Mega папката понякога се премества. Override-ът позволява адресът да се
+// смени от Vercel без редакция на кода; след промяната е нужен redeploy.
+export const STORYTEL_LIBRARY_URL = (
+  import.meta.env?.VITE_STORYTEL_LIBRARY_URL?.trim() || DEFAULT_STORYTEL_LIBRARY_URL
+);
 
 export const MAX_IN_APP_AUDIO_BYTES = 220 * 1024 * 1024;
 
@@ -233,6 +239,28 @@ export const loadMegaCatalog = (url) => {
     }));
   }
   return megaCatalogCache.get(url);
+};
+
+export const audioOnlyCatalog = (catalog) => {
+  const items = (catalog?.items || []).filter((item) => item.kind === 'audio');
+  if (!items.length) {
+    throw new Error('В Mega папката няма налични аудиокниги. Провери дали публичният адрес не е преместен.');
+  }
+
+  const categoryCounts = items.reduce((counts, item) => {
+    const name = item.category || 'Други';
+    counts.set(name, (counts.get(name) || 0) + 1);
+    return counts;
+  }, new Map());
+  const categories = [...categoryCounts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'bg'))
+    .map(([name, count], index) => ({
+      id: `mega-audio-category-${index}`,
+      name,
+      count,
+    }));
+
+  return { ...catalog, items, categories };
 };
 
 const yandexApi = 'https://cloud-api.yandex.net/v1/disk/public/resources';

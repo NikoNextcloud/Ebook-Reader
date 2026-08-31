@@ -106,6 +106,7 @@ export default function AudiobookPlayer({
   const [rate, setRate] = useState(1);
   const [energy, setEnergy] = useState(0);
   const [message, setMessage] = useState('');
+  const [audioLoading, setAudioLoading] = useState(true);
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [sleepRemaining, setSleepRemaining] = useState(0);
   const [sleepChapterEnd, setSleepChapterEnd] = useState(0);
@@ -361,9 +362,11 @@ export default function AudiobookPlayer({
       return;
     }
     try {
+      setAudioLoading(true);
+      setMessage('Зареждам аудиото…');
       await audio.play();
-      setMessage('');
     } catch (error) {
+      setAudioLoading(false);
       // Само NotAllowedError значи, че телефонът е блокирал звука. При всичко
       // друго проблемът е в самия файл/поток и трябва да го кажем честно.
       if (error?.name === 'NotAllowedError') {
@@ -663,6 +666,7 @@ export default function AudiobookPlayer({
         src={book.audioUrl}
         preload="metadata"
         playsInline
+        onLoadStart={() => setAudioLoading(true)}
         onLoadedMetadata={(event) => {
           const audio = event.currentTarget;
           const nextDuration = audio.duration || 0;
@@ -671,6 +675,8 @@ export default function AudiobookPlayer({
           timeRef.current = resumeAt;
           setDuration(nextDuration);
           setCurrentTime(resumeAt);
+          setAudioLoading(false);
+          setMessage((current) => (/^(Зареждам|Буферирам)/.test(current) ? '' : current));
           if (resumeAt) audio.currentTime = resumeAt;
         }}
         onTimeUpdate={(event) => {
@@ -687,6 +693,20 @@ export default function AudiobookPlayer({
           if (Math.abs(time - lastSavedRef.current) >= 5) saveProgress();
         }}
         onPlay={() => setPlaying(true)}
+        onPlaying={() => {
+          setAudioLoading(false);
+          setMessage((current) => (/^(Зареждам|Буферирам)/.test(current) ? '' : current));
+        }}
+        onWaiting={() => {
+          setAudioLoading(true);
+          setMessage('Буферирам аудиото…');
+        }}
+        onCanPlay={() => setAudioLoading(false)}
+        onError={async (event) => {
+          setPlaying(false);
+          setAudioLoading(false);
+          setMessage(await describeAudioProblem(event.currentTarget, book.audioUrl));
+        }}
         onPause={() => { setPlaying(false); saveProgress(); }}
         onEnded={() => {
           setPlaying(false);
@@ -735,7 +755,12 @@ export default function AudiobookPlayer({
           <RotateCcw aria-hidden="true" />
           <small>30</small>
         </button>
-        <button className="ab-main" onClick={toggle} aria-label={playing ? 'Пауза' : 'Пусни'}>
+        <button
+          className={`ab-main ${audioLoading ? 'loading' : ''}`}
+          onClick={toggle}
+          aria-label={playing ? 'Пауза' : audioLoading ? 'Зарежда аудиото' : 'Пусни'}
+          aria-busy={audioLoading}
+        >
           {playing
             ? <Pause aria-hidden="true" fill="currentColor" />
             : <Play aria-hidden="true" fill="currentColor" />}
