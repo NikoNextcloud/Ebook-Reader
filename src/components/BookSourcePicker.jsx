@@ -48,6 +48,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   const [replacementUrl, setReplacementUrl] = useState(() => getStorytelLibraryUrl());
   const [favoriteKeys, setFavoriteKeys] = useState(() => loadRemoteFavorites());
   const [showFavorites, setShowFavorites] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(100);
   const [progress, setProgress] = useState(null);
 
   const visibleItems = useMemo(() => {
@@ -82,6 +83,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setActiveCategory(cached ? ALL_CATEGORY.name : '');
     setSearch('');
     setShowFavorites(false);
+    setVisibleLimit(100);
     setStatus(cached ? 'Показвам ' + cached.items.length + ' запазени книги · обновявам…'
       : nextSource === 'mega' ? 'Зареждам Storytel от Nextcloud…' : 'Зареждам библиотеката…');
 
@@ -385,7 +387,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
                 type="search"
                 value={search}
                 placeholder="Търси заглавие или автор"
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => { setSearch(event.target.value); setVisibleLimit(100); }}
                 disabled={!catalog}
               />
             </label>
@@ -403,7 +405,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
 
           <div className={`source-books ${busy && !catalog ? 'loading' : ''}`}>
             {!catalog && <p><Sparkles aria-hidden="true" />{status}</p>}
-            {catalog && visibleItems.slice(0, 100).map((item) => {
+            {catalog && visibleItems.slice(0, visibleLimit).map((item) => {
               const favorite = favoriteKeys.has(remoteBookKey(source, item));
               return (
                 <article className="source-book-row" key={item.id}>
@@ -431,6 +433,15 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
                 </article>
               );
             })}
+            {catalog && visibleItems.length > visibleLimit && (
+              <button
+                type="button"
+                className="source-show-more"
+                onClick={() => setVisibleLimit((previous) => previous + 100)}
+              >
+                Покажи още 100 книги · {visibleItems.length - visibleLimit} остават
+              </button>
+            )}
             {catalog && !visibleItems.length && !busy && (
               <p><Search aria-hidden="true" />Няма книги по това търсене.</p>
             )}
