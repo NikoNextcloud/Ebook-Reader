@@ -18,6 +18,7 @@ import {
   formatRemoteSize,
   loadFourEtiLibrary,
   loadMegaCatalog,
+  loadStorytelCatalog,
   resolveFourEtiBookItem,
   getStorytelLibraryUrl,
   setStorytelLibraryUrl,
@@ -74,12 +75,12 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setStatus(nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
     try {
       if (nextSource === 'mega') {
-        const loaded = audioOnlyCatalog(await loadMegaCatalog(getStorytelLibraryUrl(), { forceRefresh }));
+        const loaded = audioOnlyCatalog(await loadStorytelCatalog({ forceRefresh }));
         setCatalog(loaded);
         setCategories([ALL_CATEGORY, ...loaded.categories]);
         setActiveCategory(ALL_CATEGORY.name);
         setStatus(loaded.sourceUnavailable
-          ? 'Показан е запазен списък с ' + loaded.items.length + ' заглавия. В момента MEGA не предоставя каталога: ' + loaded.sourceError
+          ? 'Показан е запазен списък с ' + loaded.items.length + ' заглавия. В момента Nextcloud не предоставя каталога: ' + loaded.sourceError
           : loaded.items.length + ' аудиокниги');
       } else {
         const loaded = await loadFourEtiLibrary(FOUR_ETI_URL);
@@ -91,7 +92,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     } catch (error) {
       const detail = error?.message || 'Източникът не отговаря.';
       setStatus(nextSource === 'mega'
-        ? 'Каталогът на MEGA е недостъпен: ' + detail + '. Книгите не са изтрити от приложението.'
+        ? 'Каталогът на Nextcloud е недостъпен: ' + detail + '. Книгите не са изтрити от приложението.'
         : detail);
     } finally {
       setBusy(false);
@@ -160,6 +161,10 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     // Аудиокнигите вече НЕ се свалят цели. Плеърът ги пуска на поток през
     // /api/mega-stream и тегли само парчето, което свири — така тръгват
     // веднага и не задръстват паметта на телефона (проблемът на iPhone).
+    if (item.kind === 'audio' && item.provider === 'nextcloud') {
+      onAudio({ streamUrl: item.url, name: item.name, size: item.size }, details);
+      return;
+    }
     if (item.kind === 'audio' && item.provider === 'mega') {
       let artwork = { metadata: null, cover: null };
       try {
@@ -305,11 +310,11 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
           {source === 'mega' && !busy && (!catalog || catalog.sourceUnavailable) && (
             <div className="source-status" role="alert">
               <p>{status}</p>
-              <p>Запазените заглавия са само списък — самите аудиофайлове може да са недостъпни.</p>
+              <p>Ако Nextcloud не е достъпен, провери Funnel и WebDAV достъпа.</p>
               <button type="button" onClick={() => chooseSource('mega', { forceRefresh: true })}>
                 Опитай отново
               </button>
-              <label className="source-mega-address">
+              {false && <label className="source-mega-address">
                 Имаш друга публична MEGA папка с разрешен достъп?
                 <input
                   type="url"
@@ -318,10 +323,10 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
                   placeholder="https://mega.nz/folder/ID#ключ"
                   spellCheck={false}
                 />
-              </label>
-              <button type="button" disabled={!isValidStorytelLibraryUrl(replacementUrl)} onClick={replaceMegaFolder}>
+              </label>}
+              {false && <button type="button" disabled={!isValidStorytelLibraryUrl(replacementUrl)} onClick={replaceMegaFolder}>
                 Провери и използвай този адрес
-              </button>
+              </button>}
             </div>
           )}
           <div className="source-search-row">
