@@ -5,7 +5,7 @@ export const parseShare = (value = '') => {
   const url = new URL(value);
   if (url.protocol !== 'https:' || !url.pathname.match(/\/s\/([A-Za-z0-9_-]+)\/?$/)) throw new Error('INVALID_SHARE');
   const token = url.pathname.match(/\/s\/([A-Za-z0-9_-]+)\/?$/)[1];
-  const base = url.pathname.slice(0, url.pathname.lastIndexOf('/s/')).replace(/\/$/, '');
+  const base = url.pathname.slice(0, url.pathname.lastIndexOf('/s/')).replace(/\/index\.php$/, '').replace(/\/$/, '');
   return { origin: url.origin, token, base, dav: url.origin + base + '/public.php/dav/files/' + token + '/' };
 };
 export const safePath = (value = '') => {
