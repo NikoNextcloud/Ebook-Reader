@@ -11,7 +11,7 @@ import {
   formatRemoteSize,
   loadFourEtiLibrary,
   loadMegaCatalog,
-  STORYTEL_LIBRARY_URL,
+  getStorytelLibraryUrl,
 } from '../services/remoteBooks';
 
 const FOUR_ETI_URL = 'https://4eti.me/';
@@ -357,7 +357,7 @@ function DailyShelf({
   );
 }
 
-const loadStorytel = () => loadMegaCatalog(STORYTEL_LIBRARY_URL);
+const loadStorytel = () => loadMegaCatalog(getStorytelLibraryUrl());
 const loadLibrary = () => loadFourEtiLibrary(FOUR_ETI_URL);
 
 export default function StorytelShelf({ onOpen, onOpenLibrary }) {
