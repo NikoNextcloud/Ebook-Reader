@@ -851,6 +851,14 @@ export default function App() {
         return;
       }
       // Mega книгите се пускат на поток — тръгват веднага, без сваляне.
+      if (book.sourceUrl?.startsWith('/api/nextcloud-stream?')) {
+        openAudioBook(
+          { streamUrl: book.sourceUrl, name: book.fileName || book.title },
+          { book, libraryId: book.id, favorite: book.favorite, remoteKey: book.remoteKey, source: 'nextcloud' },
+        );
+        setMessage('');
+        return;
+      }
       if (isMegaUrl(book.sourceUrl)) {
         openAudioBook(
           { streamUrl: audioStreamUrl(book.sourceUrl, book.fileName), name: book.fileName || book.title },
@@ -1079,6 +1087,15 @@ export default function App() {
   };
 
   const openStorytelSuggestion = async (item) => {
+    if (item.provider === 'nextcloud') {
+      const key = remoteBookKey('mega', item);
+      openAudioBook(
+        { streamUrl: item.url, name: item.name },
+        { item, book: item, source: 'nextcloud', favorite: loadRemoteFavorites().has(key), remoteKey: key },
+      );
+      setMessage('');
+      return;
+    }
     setMessage(`Зареждам „${item.name.replace(/\.(m4b|m4a|mp3|aac)$/i, '')}“…`);
     try {
       let artwork = { metadata: null, cover: null };
