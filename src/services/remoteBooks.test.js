@@ -10,6 +10,8 @@ import {
   isYandexPublicUrl,
   normalizeRemoteUrl,
   STORYTEL_LIBRARY_URL,
+  saveMegaCatalogSnapshot,
+  readMegaCatalogSnapshot,
 } from './remoteBooks';
 
 describe('remote book links', () => {
@@ -61,6 +63,36 @@ describe('remote book links', () => {
     expect(normalizeRemoteUrl('4eti.me/book')).toBe('https://4eti.me/book');
     expect(formatRemoteSize(748067)).toBe('731 KB');
     expect(formatRemoteSize(150 * 1024 * 1024)).toBe('150 MB');
+  });
+
+  it('preserves the catalog index without megajs node objects', () => {
+    const store = new Map();
+    const storage = {
+      getItem: (key) => store.get(key) || null,
+      setItem: (key, value) => store.set(key, value),
+    };
+    const folder = 'https://mega.nz/folder/abc#key';
+    const item = {
+      id: 'mega-0',
+      kind: 'audio',
+      name: 'book.m4b',
+      category: 'Романи',
+      provider: 'mega',
+      url: 'https://mega.nz/folder/abc#key/file/child',
+      size: 345,
+      _node: { transient: true },
+    };
+    expect(saveMegaCatalogSnapshot(folder, { title: 'Storytel', items: [item] }, storage)).toBe(true);
+    const cached = readMegaCatalogSnapshot(folder, storage);
+    expect(cached.items[0].name).toBe('book.m4b');
+    expect(cached.items[0]._node).toBeUndefined();
+    expect(cached.categories[0].name).toBe('Романи');
+    expect(readMegaCatalogSnapshot('https://mega.nz/folder/other#key', storage)).toBeNull();
+  });
+
+  it('ignores broken cache entries', () => {
+    const storage = { getItem: () => '{broken json' };
+    expect(readMegaCatalogSnapshot('https://mega.nz/folder/abc#key', storage)).toBeNull();
   });
 
   it('uses the current Storytel folder and hides non-audio helper files', () => {
