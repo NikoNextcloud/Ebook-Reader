@@ -1,3 +1,5 @@
+import { idbGet, idbSet } from './idbCache';
+
 const DOCUMENT_RE = /\.(txt|md|markdown|rtf|html?|docx|pdf|epub|mobi|azw3|fb2|cbz)$/i;
 const AUDIO_RE = /\.(m4b|m4a|mp3|aac)$/i;
 const fourEtiCache = new Map();
@@ -345,61 +347,149 @@ const STORYTEL_SNAPSHOT_KEY = 'voxora_nextcloud_catalog_v1';
 const STORYTEL_MEMORY_TTL_MS = 4 * 60 * 1000;
 let storytelMemory = null;
 let storytelInFlight = null;
+let storytelProgress = null;
+const storytelProgressListeners = new Set();
+
+const normalizeStorytelSnapshot = (saved) => {
+  if (!Array.isArray(saved?.items) || !saved.items.length) return null;
+  const items = saved.items.filter((item) => item?.provider === 'nextcloud'
+    && item.kind === 'audio' && typeof item.name === 'string'
+    && item.url?.startsWith('/api/nextcloud-stream?path='));
+  return items.length ? {
+    title: saved.title || 'Сторител Аудиокниги', items,
+    savedAt: saved.savedAt || 0, fromSnapshot: true,
+  } : null;
+};
 
 export const readStorytelCatalogSnapshot = (storage = globalThis.localStorage) => {
   try {
-    const saved = JSON.parse(storage?.getItem(STORYTEL_SNAPSHOT_KEY) || 'null');
-    if (!Array.isArray(saved?.items) || !saved.items.length) return null;
-    const items = saved.items.filter((item) => item?.provider === 'nextcloud'
-      && item.kind === 'audio' && typeof item.name === 'string'
-      && item.url?.startsWith('/api/nextcloud-stream?path='));
-    return items.length ? {
-      title: saved.title || 'Сторител Аудиокниги', items,
-      savedAt: saved.savedAt || 0, fromSnapshot: true,
-    } : null;
+    return normalizeStorytelSnapshot(JSON.parse(
+      storage?.getItem(STORYTEL_SNAPSHOT_KEY) || 'null'));
   } catch {
     return null;
   }
 };
 
+export const readStorytelCatalogSnapshotAsync = async () => (
+  normalizeStorytelSnapshot(await idbGet(STORYTEL_SNAPSHOT_KEY))
+  || readStorytelCatalogSnapshot()
+);
+
 export const saveStorytelCatalogSnapshot = (
   catalog, storage = globalThis.localStorage,
 ) => {
-  try {
-    if (!Array.isArray(catalog?.items) || !catalog.items.length) return false;
-    const items = catalog.items.map((item) => ({
+  if (!Array.isArray(catalog?.items) || !catalog.items.length) return false;
+  const snapshot = {
+    title: catalog.title || 'Сторител Аудиокниги',
+    savedAt: Date.now(),
+    items: catalog.items.map((item) => ({
       id: item.id, kind: item.kind, name: item.name,
       path: item.path, category: item.category, size: item.size,
       url: item.url, provider: item.provider,
+    })),
+  };
+  // IndexedDB supports large libraries; a smaller localStorage sample is
+  // available synchronously while IndexedDB opens on the next visit.
+  if (storage === globalThis.localStorage) {
+    void idbSet(STORYTEL_SNAPSHOT_KEY, snapshot);
+  }
+  try {
+    storage?.setItem(STORYTEL_SNAPSHOT_KEY, JSON.stringify({
+      ...snapshot, items: snapshot.items.slice(0, 400),
     }));
-    storage?.setItem(STORYTEL_SNAPSHOT_KEY,
-      JSON.stringify({ title: catalog.title, savedAt: Date.now(), items }));
     return true;
   } catch {
     return false;
   }
 };
 
-export const loadStorytelCatalog = ({ forceRefresh = false } = {}) => {
+export const loadStorytelCatalog = ({ forceRefresh = false, onProgress } = {}) => {
   if (!forceRefresh && storytelMemory
       && Date.now() - storytelMemory.at < STORYTEL_MEMORY_TTL_MS) {
+    onProgress?.(storytelMemory.catalog);
     return Promise.resolve(storytelMemory.catalog);
   }
+  if (onProgress) {
+    storytelProgressListeners.add(onProgress);
+    if (storytelProgress?.items?.length) onProgress(storytelProgress);
+  }
   if (storytelInFlight) return storytelInFlight;
-  const endpoint = '/api/nextcloud-catalog' + (forceRefresh ? '?refresh=1' : '');
-  storytelInFlight = fetch(endpoint, {
-    cache: forceRefresh ? 'no-store' : 'default',
-  }).then(async (response) => {
-    if (!response.ok) {
-      const details = await response.json().catch(() => ({}));
-      throw new Error(details.error || 'Nextcloud не отговаря (HTTP ' + response.status + ').');
+
+  storytelInFlight = (async () => {
+    const items = [];
+    const seen = new Set();
+    let pending = null;
+    let scannedFolders = 0;
+    let pages = 0;
+    try {
+      while (true) {
+        const isFirst = pending === null;
+        const response = await fetch('/api/nextcloud-catalog', isFirst ? {
+          cache: 'no-store',
+        } : {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pending }),
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          const details = await response.json().catch(() => ({}));
+          throw new Error(details.error || 'Nextcloud не отговаря (HTTP ' + response.status + ').');
+        }
+        const page = await response.json();
+        if (!Array.isArray(page.items) || !Array.isArray(page.nextQueue)
+            || typeof page.done !== 'boolean') {
+          throw new Error('Невалидна страница от каталога на Nextcloud.');
+        }
+        for (const item of page.items) {
+          if (item?.kind === 'audio' && !seen.has(item.path)) {
+            seen.add(item.path);
+            items.push(item);
+          }
+        }
+        scannedFolders += page.scannedFolders || 0;
+        pages += 1;
+        const current = {
+          title: page.title || 'Сторител Аудиокниги',
+          items: [...items], loading: !page.done, scannedFolders,
+        };
+        storytelProgress = current;
+        for (const listener of storytelProgressListeners) {
+          try { listener(current); } catch { /* UI callbacks are optional */ }
+        }
+        if (items.length && pages % 8 === 0) saveStorytelCatalogSnapshot(current);
+        if (page.done) {
+          if (!items.length) throw new Error('В Nextcloud не са открити поддържани аудиокниги.');
+          storytelMemory = { catalog: current, at: Date.now() };
+          saveStorytelCatalogSnapshot(current);
+          return current;
+        }
+        if (!page.scannedFolders || !page.nextQueue.length) {
+          throw new Error('Обхождането на Nextcloud спря неочаквано.');
+        }
+        pending = page.nextQueue;
+      }
+    } catch (error) {
+      const previous = items.length
+        ? { title: 'Сторител Аудиокниги', items }
+        : readStorytelCatalogSnapshotAsync
+          ? await readStorytelCatalogSnapshotAsync() : null;
+      if (!previous?.items?.length) throw error;
+      const fallback = {
+        ...previous, sourceUnavailable: true,
+        sourceError: error?.message || 'Nextcloud не отговаря.',
+        scannedFolders,
+      };
+      for (const listener of storytelProgressListeners) {
+        try { listener(fallback); } catch { /* optional */ }
+      }
+      return fallback;
     }
-    const catalog = await response.json();
-    if (!Array.isArray(catalog.items)) throw new Error('Невалиден отговор от Nextcloud.');
-    storytelMemory = { catalog, at: Date.now() };
-    if (!catalog.sourceUnavailable) saveStorytelCatalogSnapshot(catalog);
-    return catalog;
-  }).finally(() => { storytelInFlight = null; });
+  })().finally(() => {
+    storytelInFlight = null;
+    storytelProgress = null;
+    storytelProgressListeners.clear();
+  });
   return storytelInFlight;
 };
 

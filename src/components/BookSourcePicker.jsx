@@ -20,6 +20,7 @@ import {
   loadMegaCatalog,
   loadStorytelCatalog,
   readStorytelCatalogSnapshot,
+  readStorytelCatalogSnapshotAsync,
   resolveFourEtiBookItem,
   getStorytelLibraryUrl,
   setStorytelLibraryUrl,
@@ -81,19 +82,45 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setActiveCategory(cached ? ALL_CATEGORY.name : '');
     setSearch('');
     setShowFavorites(false);
-    setStatus(cached ? 'Показвам запазените ' + cached.items.length
-      + ' аудиокниги · проверявам за нови…'
-      : nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
+    setStatus(cached ? 'Показвам ' + cached.items.length + ' запазени книги · обновявам…'
+      : nextSource === 'mega' ? 'Зареждам Storytel от Nextcloud…' : 'Зареждам библиотеката…');
+
+    let liveProgress = false;
+    const show = (value, scanning = false) => {
+      if (requestId.current !== sequence || !value?.items?.length) return;
+      const loaded = audioOnlyCatalog(value);
+      setCatalog(loaded);
+      setCategories([ALL_CATEGORY, ...loaded.categories]);
+      setActiveCategory((current) => current || ALL_CATEGORY.name);
+      setBusy(false);
+      setRefreshing(scanning);
+      setStatus(value.sourceUnavailable
+        ? 'Nextcloud прекъсна. Показвам наличните ' + loaded.items.length
+          + ' книги: ' + value.sourceError
+        : scanning
+          ? 'Открити ' + loaded.items.length + ' книги · проверени '
+            + (value.scannedFolders || 0) + ' папки…'
+          : loaded.items.length + ' аудиокниги');
+    };
+
     try {
       if (nextSource === 'mega') {
-        const loaded = audioOnlyCatalog(await loadStorytelCatalog({ forceRefresh }));
+        const promise = loadStorytelCatalog({
+          forceRefresh,
+          onProgress: (partial) => {
+            if (requestId.current !== sequence) return;
+            liveProgress = true;
+            show(partial, !!partial.loading);
+          },
+        });
+        if (!cached && !forceRefresh) {
+          void readStorytelCatalogSnapshotAsync().then((saved) => {
+            if (!liveProgress) show(saved, true);
+          });
+        }
+        const loaded = await promise;
         if (requestId.current !== sequence) return;
-        setCatalog(loaded);
-        setCategories([ALL_CATEGORY, ...loaded.categories]);
-        setActiveCategory(ALL_CATEGORY.name);
-        setStatus(loaded.sourceUnavailable
-          ? 'Показан е последният запазен списък. Nextcloud временно не отговаря: ' + loaded.sourceError
-          : loaded.items.length + ' аудиокниги');
+        show(loaded, false);
       } else {
         const loaded = await loadFourEtiLibrary(FOUR_ETI_URL);
         if (requestId.current !== sequence) return;
@@ -106,13 +133,13 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
       if (requestId.current !== sequence) return;
       const detail = error?.message || 'Източникът не отговаря.';
       setStatus(nextSource === 'mega'
-        ? (cached
-          ? 'Запазените аудиокниги са налични. Обновяването се провали: ' + detail
+        ? (catalog || cached
+          ? 'Наличните книги остават видими. Обновяването се провали: ' + detail
           : 'Каталогът на Nextcloud е недостъпен: ' + detail)
         : detail);
     } finally {
       if (requestId.current === sequence) {
-        if (!cached) setBusy(false);
+        setBusy(false);
         setRefreshing(false);
       }
     }

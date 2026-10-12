@@ -279,7 +279,12 @@ function DailyShelf({
         ? 'ready' : 'loading');
       setCovers({});
       try {
-        const catalog = await loader();
+        const catalog = await loader((partial) => {
+          if (!active || !partial?.items?.length || variant !== 'storytel') return;
+          const featured = selector(partial.items, 10, dayKey);
+          setItems(featured);
+          setStatus('ready');
+        });
         if (catalog.sourceUnavailable) {
           if (active) setStatus('error');
           return;
@@ -364,7 +369,7 @@ function DailyShelf({
   );
 }
 
-const loadStorytel = () => loadStorytelCatalog();
+const loadStorytel = (onProgress) => loadStorytelCatalog({ onProgress });
 const loadLibrary = () => loadFourEtiLibrary(FOUR_ETI_URL);
 
 export default function StorytelShelf({ onOpen, onOpenLibrary }) {
