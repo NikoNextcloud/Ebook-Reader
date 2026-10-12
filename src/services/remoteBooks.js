@@ -2,6 +2,52 @@ const DOCUMENT_RE = /\.(txt|md|markdown|rtf|html?|docx|pdf|epub|mobi|azw3|fb2|cb
 const AUDIO_RE = /\.(m4b|m4a|mp3|aac)$/i;
 const fourEtiCache = new Map();
 const megaCatalogCache = new Map();
+const MEGA_SNAPSHOT_PREFIX = 'voxora_megacatalog_snapshot_v1:';
+
+// Store a metadata-only catalog, never megajs nodes or decrypted audio.
+// Cached titles remain visible during an outage, but access to the files is
+// always subject to the original provider's permissions.
+export const saveMegaCatalogSnapshot = (url, catalog, storage = globalThis.localStorage) => {
+  try {
+    if (!Array.isArray(catalog?.items) || !catalog.items.length) return false;
+    const payload = {
+      url,
+      title: catalog.title || 'Аудиокниги',
+      savedAt: Date.now(),
+      items: catalog.items.map((item) => ({
+        id: item.id, kind: item.kind, name: item.name, path: item.path,
+        category: item.category, size: item.size, url: item.url, provider: item.provider,
+      })),
+    };
+    storage?.setItem(MEGA_SNAPSHOT_PREFIX + url, JSON.stringify(payload));
+    return true;
+  } catch {
+    // Storage can be unavailable or at capacity. The live catalog still works.
+    return false;
+  }
+};
+
+export const readMegaCatalogSnapshot = (url, storage = globalThis.localStorage) => {
+  try {
+    const saved = JSON.parse(storage?.getItem(MEGA_SNAPSHOT_PREFIX + url) || 'null');
+    if (saved?.url !== url || !Array.isArray(saved.items) || !saved.items.length) return null;
+    const items = saved.items.filter((item) =>
+      item && typeof item.name === 'string' && isMegaUrl(item.url || '')
+      && ['audio', 'document'].includes(item.kind)
+    );
+    if (!items.length) return null;
+    const categories = [...new Set(items.map((item) => item.category || 'Други'))]
+      .sort((a, b) => a.localeCompare(b, 'bg'))
+      .map((name, index) => ({
+        id: 'mega-category-' + index,
+        name,
+        count: items.filter((item) => (item.category || 'Други') === name).length,
+      }));
+    return { title: saved.title || 'Аудиокниги', items, categories, savedAt: saved.savedAt || 0 };
+  } catch {
+    return null;
+  }
+};
 const DEFAULT_STORYTEL_LIBRARY_URL = 'https://mega.nz/folder/SWAVQIza#HFtrZx70YpMX2WxpD0WiLA';
 
 // Mega папката понякога се премества. Override-ът позволява адресът да се
@@ -231,12 +277,25 @@ const fetchMegaCatalog = async (url) => {
   return { title: selected.name || 'Mega', items, categories };
 };
 
-export const loadMegaCatalog = (url) => {
+export const loadMegaCatalog = (url, { forceRefresh = false } = {}) => {
+  if (forceRefresh) megaCatalogCache.delete(url);
   if (!megaCatalogCache.has(url)) {
-    megaCatalogCache.set(url, fetchMegaCatalog(url).catch((error) => {
-      megaCatalogCache.delete(url);
-      throw error;
-    }));
+    const pending = fetchMegaCatalog(url)
+      .then((catalog) => {
+        saveMegaCatalogSnapshot(url, catalog);
+        return catalog;
+      })
+      .catch((error) => {
+        megaCatalogCache.delete(url);
+        const previous = readMegaCatalogSnapshot(url);
+        if (!previous) throw error;
+        return {
+          ...previous,
+          sourceUnavailable: true,
+          sourceError: error?.message || 'MEGA не отговаря.',
+        };
+      });
+    megaCatalogCache.set(url, pending);
   }
   return megaCatalogCache.get(url);
 };
