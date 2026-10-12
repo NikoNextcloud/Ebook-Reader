@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseShare, safePath, extractDavEntries } from '../server/nextcloud-lib.js';
+import { parseShare, safePath, extractDavEntries, listAudioBooks } from '../server/nextcloud-lib.js';
 
 describe('Nextcloud share WebDAV integration', () => {
   const share = 'https://server.example/index.php/s/qSrsNmZa7axxwF8';
@@ -23,5 +23,44 @@ describe('Nextcloud share WebDAV integration', () => {
       { path: 'Романи', name: 'Романи', directory: true, size: 0 },
       { path: 'Романи/book.m4b', name: 'book.m4b', directory: false, size: 12345 },
     ]);
+  });
+});
+
+
+describe('Parallel WebDAV indexer', () => {
+  it('fetches multiple folders concurrently and keeps a stable sorted index', async () => {
+    const map = {
+      '': Array.from({ length: 10 }, (_, i) => ({
+        path: 'folder-' + i, name: 'folder-' + i, directory: true,
+      })),
+    };
+    for (let i = 0; i < 10; i += 1) {
+      map['folder-' + i] = [{
+        path: 'folder-' + i + '/Книга ' + i + '.m4b',
+        name: 'Книга ' + i + '.m4b', size: i + 10, directory: false,
+      }];
+    }
+    let active = 0;
+    let maxActive = 0;
+    const listFolder = async (_config, folder) => {
+      active += 1;
+      maxActive = Math.max(active, maxActive);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active -= 1;
+      return map[folder] || [];
+    };
+    const result = await listAudioBooks({}, { listFolder, concurrency: 3 });
+    expect(maxActive).toBe(3);
+    expect(result.items).toHaveLength(10);
+    expect(result.items.map((x) => x.path)).toEqual(
+      [...result.items.map((x) => x.path)].sort((a, b) => a.localeCompare(b, 'bg'))
+    );
+    expect(result.items[0].provider).toBe('nextcloud');
+  });
+
+  it('rejects a failing WebDAV folder rather than returning incomplete books', async () => {
+    await expect(listAudioBooks({}, {
+      listFolder: async () => { throw new Error('NEXTCLOUD_HTTP_503'); },
+    })).rejects.toThrow('NEXTCLOUD_HTTP_503');
   });
 });

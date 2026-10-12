@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BookOpenText,
@@ -19,6 +19,7 @@ import {
   loadFourEtiLibrary,
   loadMegaCatalog,
   loadStorytelCatalog,
+  readStorytelCatalogSnapshot,
   resolveFourEtiBookItem,
   getStorytelLibraryUrl,
   setStorytelLibraryUrl,
@@ -40,6 +41,8 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   const [activeCategory, setActiveCategory] = useState('');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const requestId = useRef(0);
   const [status, setStatus] = useState('');
   const [replacementUrl, setReplacementUrl] = useState(() => getStorytelLibraryUrl());
   const [favoriteKeys, setFavoriteKeys] = useState(() => loadRemoteFavorites());
@@ -66,36 +69,52 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
       onManual();
       return;
     }
-
+    const sequence = ++requestId.current;
+    const previous = nextSource === 'mega' && !forceRefresh
+      ? readStorytelCatalogSnapshot() : null;
+    const cached = previous ? audioOnlyCatalog(previous) : null;
     setSource(nextSource);
-    setBusy(true);
-    setCatalog(null);
+    setBusy(!cached);
+    setRefreshing(!!cached);
+    setCatalog(cached);
+    setCategories(cached ? [ALL_CATEGORY, ...cached.categories] : []);
+    setActiveCategory(cached ? ALL_CATEGORY.name : '');
     setSearch('');
     setShowFavorites(false);
-    setStatus(nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
+    setStatus(cached ? 'Показвам запазените ' + cached.items.length
+      + ' аудиокниги · проверявам за нови…'
+      : nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
     try {
       if (nextSource === 'mega') {
         const loaded = audioOnlyCatalog(await loadStorytelCatalog({ forceRefresh }));
+        if (requestId.current !== sequence) return;
         setCatalog(loaded);
         setCategories([ALL_CATEGORY, ...loaded.categories]);
         setActiveCategory(ALL_CATEGORY.name);
         setStatus(loaded.sourceUnavailable
-          ? 'Показан е запазен списък с ' + loaded.items.length + ' заглавия. В момента Nextcloud не предоставя каталога: ' + loaded.sourceError
+          ? 'Показан е последният запазен списък. Nextcloud временно не отговаря: ' + loaded.sourceError
           : loaded.items.length + ' аудиокниги');
       } else {
         const loaded = await loadFourEtiLibrary(FOUR_ETI_URL);
+        if (requestId.current !== sequence) return;
         setCatalog(loaded);
         setCategories(loaded.categories);
         setActiveCategory(loaded.categories[0]?.name || 'Нови');
-        setStatus(`${loaded.items.length} книги в „Нови“`);
+        setStatus(loaded.items.length + ' книги в „Нови“');
       }
     } catch (error) {
+      if (requestId.current !== sequence) return;
       const detail = error?.message || 'Източникът не отговаря.';
       setStatus(nextSource === 'mega'
-        ? 'Каталогът на Nextcloud е недостъпен: ' + detail + '. Книгите не са изтрити от приложението.'
+        ? (cached
+          ? 'Запазените аудиокниги са налични. Обновяването се провали: ' + detail
+          : 'Каталогът на Nextcloud е недостъпен: ' + detail)
         : detail);
     } finally {
-      setBusy(false);
+      if (requestId.current === sequence) {
+        if (!cached) setBusy(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -213,6 +232,9 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   };
 
   const backToSources = () => {
+    requestId.current += 1;
+    setRefreshing(false);
+    setBusy(false);
     setSource('');
     setCatalog(null);
     setCategories([]);
@@ -349,7 +371,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
             >
               <Heart fill={showFavorites ? 'currentColor' : 'none'} aria-hidden="true" />
             </button>
-            <span><strong>{busy ? '…' : visibleItems.length}</strong><small>резултата</small></span>
+            <span><strong>{busy ? '…' : visibleItems.length}</strong><small>{refreshing ? 'обновяване…' : 'резултата'}</small></span>
           </div>
 
           <div className={`source-books ${busy && !catalog ? 'loading' : ''}`}>

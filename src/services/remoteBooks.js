@@ -341,16 +341,66 @@ export const loadMegaCatalog = (url, { forceRefresh = false } = {}) => {
   return megaCatalogCache.get(url);
 };
 
-export const loadStorytelCatalog = async ({ forceRefresh = false } = {}) => {
-  const endpoint = '/api/nextcloud-catalog';
-  const response = await fetch(endpoint, { cache: forceRefresh ? 'no-store' : 'default' });
-  if (!response.ok) {
-    const details = await response.json().catch(() => ({}));
-    throw new Error(details.error || 'Nextcloud не отговаря (HTTP ' + response.status + ').');
+const STORYTEL_SNAPSHOT_KEY = 'voxora_nextcloud_catalog_v1';
+const STORYTEL_MEMORY_TTL_MS = 4 * 60 * 1000;
+let storytelMemory = null;
+let storytelInFlight = null;
+
+export const readStorytelCatalogSnapshot = (storage = globalThis.localStorage) => {
+  try {
+    const saved = JSON.parse(storage?.getItem(STORYTEL_SNAPSHOT_KEY) || 'null');
+    if (!Array.isArray(saved?.items) || !saved.items.length) return null;
+    const items = saved.items.filter((item) => item?.provider === 'nextcloud'
+      && item.kind === 'audio' && typeof item.name === 'string'
+      && item.url?.startsWith('/api/nextcloud-stream?path='));
+    return items.length ? {
+      title: saved.title || 'Сторител Аудиокниги', items,
+      savedAt: saved.savedAt || 0, fromSnapshot: true,
+    } : null;
+  } catch {
+    return null;
   }
-  const catalog = await response.json();
-  if (!Array.isArray(catalog.items)) throw new Error('Невалиден отговор от Nextcloud.');
-  return catalog;
+};
+
+export const saveStorytelCatalogSnapshot = (
+  catalog, storage = globalThis.localStorage,
+) => {
+  try {
+    if (!Array.isArray(catalog?.items) || !catalog.items.length) return false;
+    const items = catalog.items.map((item) => ({
+      id: item.id, kind: item.kind, name: item.name,
+      path: item.path, category: item.category, size: item.size,
+      url: item.url, provider: item.provider,
+    }));
+    storage?.setItem(STORYTEL_SNAPSHOT_KEY,
+      JSON.stringify({ title: catalog.title, savedAt: Date.now(), items }));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const loadStorytelCatalog = ({ forceRefresh = false } = {}) => {
+  if (!forceRefresh && storytelMemory
+      && Date.now() - storytelMemory.at < STORYTEL_MEMORY_TTL_MS) {
+    return Promise.resolve(storytelMemory.catalog);
+  }
+  if (storytelInFlight) return storytelInFlight;
+  const endpoint = '/api/nextcloud-catalog' + (forceRefresh ? '?refresh=1' : '');
+  storytelInFlight = fetch(endpoint, {
+    cache: forceRefresh ? 'no-store' : 'default',
+  }).then(async (response) => {
+    if (!response.ok) {
+      const details = await response.json().catch(() => ({}));
+      throw new Error(details.error || 'Nextcloud не отговаря (HTTP ' + response.status + ').');
+    }
+    const catalog = await response.json();
+    if (!Array.isArray(catalog.items)) throw new Error('Невалиден отговор от Nextcloud.');
+    storytelMemory = { catalog, at: Date.now() };
+    if (!catalog.sourceUnavailable) saveStorytelCatalogSnapshot(catalog);
+    return catalog;
+  }).finally(() => { storytelInFlight = null; });
+  return storytelInFlight;
 };
 
 export const audioOnlyCatalog = (catalog) => {

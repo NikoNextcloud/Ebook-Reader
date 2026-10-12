@@ -11,6 +11,7 @@ import {
   formatRemoteSize,
   loadFourEtiLibrary,
   loadStorytelCatalog,
+  readStorytelCatalogSnapshot,
 } from '../services/remoteBooks';
 
 const FOUR_ETI_URL = 'https://4eti.me/';
@@ -258,9 +259,14 @@ function DailyShelf({
   withArtwork = false,
   dayKey,
 }) {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() =>
+    variant === 'storytel'
+      ? selector(readStorytelCatalogSnapshot()?.items || [], 10, dayKey)
+      : []);
   const [covers, setCovers] = useState({});
-  const [status, setStatus] = useState('loading');
+  const [status, setStatus] = useState(() =>
+    variant === 'storytel' && readStorytelCatalogSnapshot()?.items?.length
+      ? 'ready' : 'loading');
   const [openingId, setOpeningId] = useState('');
   const [reload, setReload] = useState(0);
 
@@ -269,7 +275,8 @@ function DailyShelf({
     const objectUrls = [];
 
     const load = async () => {
-      setStatus('loading');
+      setStatus((current) => current === 'ready' && variant === 'storytel'
+        ? 'ready' : 'loading');
       setCovers({});
       try {
         const catalog = await loader();
@@ -296,7 +303,8 @@ function DailyShelf({
           }));
         }
       } catch {
-        if (active) setStatus('error');
+        if (active) setStatus((current) =>
+          current === 'ready' && variant === 'storytel' ? 'ready' : 'error');
       }
     };
 

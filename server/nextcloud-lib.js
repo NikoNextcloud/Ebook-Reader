@@ -55,33 +55,70 @@ export const listDav = async (config, folder = '') => {
   if (!response.ok) throw new Error('NEXTCLOUD_HTTP_' + response.status);
   return extractDavEntries(await response.text(), config);
 };
-export const listAudioBooks = async (config) => {
-  const folders = [''];
-  const items = [];
-  const visited = new Set();
-  while (folders.length) {
-    const folder = folders.shift();
-    if (visited.has(folder)) continue;
-    visited.add(folder);
-    if (visited.size > 2500) throw new Error('CATALOG_TOO_LARGE');
-    const entries = await listDav(config, folder);
-    for (const entry of entries) {
-      if (entry.path === folder) continue;
-      if (entry.directory) folders.push(entry.path);
-      else if (AUDIO_EXT.test(entry.name)) {
-        items.push({
-          id: 'nc-' + items.length,
-          kind: 'audio',
-          name: entry.name,
-          path: entry.path,
-          category: entry.path.includes('/') ? entry.path.split('/')[0] : 'Други',
-          size: entry.size,
-          url: '/api/nextcloud-stream?path=' + encodeURIComponent(entry.path),
-          provider: 'nextcloud',
-        });
-        if (items.length > MAX_ITEMS) throw new Error('CATALOG_TOO_LARGE');
+// Nextcloud normally supports Depth: 1, so the folder tree needs multiple
+// PROPFIND calls. Run a small pool instead of waiting for each folder in series.
+// Eight requests keeps latency low while avoiding uncontrolled fan-out on
+// home-hosted Nextcloud instances.
+export const listAudioBooks = async (
+  config,
+  { listFolder = listDav, concurrency = 8 } = {},
+) => {
+  const limit = Math.min(12, Math.max(1, Math.floor(concurrency) || 8));
+  const pending = [''];
+  const queued = new Set(['']);
+  const discovered = [];
+  let active = 0;
+  let finished = false;
+
+  await new Promise((resolve, reject) => {
+    const fail = (error) => {
+      if (finished) return;
+      finished = true;
+      reject(error);
+    };
+    const pump = () => {
+      if (finished) return;
+      while (active < limit && pending.length > 0) {
+        const folder = pending.shift();
+        active += 1;
+        Promise.resolve().then(() => listFolder(config, folder)).then((entries) => {
+          if (finished) return;
+          for (const entry of entries) {
+            if (entry.path === folder) continue;
+            if (entry.directory) {
+              if (!queued.has(entry.path)) {
+                queued.add(entry.path);
+                if (queued.size > 2500) throw new Error('CATALOG_TOO_LARGE');
+                pending.push(entry.path);
+              }
+            } else if (AUDIO_EXT.test(entry.name)) {
+              discovered.push(entry);
+              if (discovered.length > MAX_ITEMS) throw new Error('CATALOG_TOO_LARGE');
+            }
+          }
+          active -= 1;
+          pump();
+        }).catch(fail);
       }
-    }
-  }
+      if (!active && !pending.length && !finished) {
+        finished = true;
+        resolve();
+      }
+    };
+    pump();
+  });
+
+  // Stable ordering and IDs preserve the position of books on refresh.
+  discovered.sort((a, b) => a.path.localeCompare(b.path, 'bg'));
+  const items = discovered.map((entry, index) => ({
+    id: 'nc-' + index,
+    kind: 'audio',
+    name: entry.name,
+    path: entry.path,
+    category: entry.path.includes('/') ? entry.path.split('/')[0] : 'Други',
+    size: entry.size,
+    url: '/api/nextcloud-stream?path=' + encodeURIComponent(entry.path),
+    provider: 'nextcloud',
+  }));
   return { title: 'Сторител Аудиокниги', items, categories: [] };
 };
