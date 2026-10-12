@@ -19,7 +19,9 @@ import {
   loadFourEtiLibrary,
   loadMegaCatalog,
   resolveFourEtiBookItem,
-  STORYTEL_LIBRARY_URL,
+  getStorytelLibraryUrl,
+  setStorytelLibraryUrl,
+  isValidStorytelLibraryUrl,
 } from '../services/remoteBooks';
 import {
   loadRemoteFavorites,
@@ -38,6 +40,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [replacementUrl, setReplacementUrl] = useState(() => getStorytelLibraryUrl());
   const [favoriteKeys, setFavoriteKeys] = useState(() => loadRemoteFavorites());
   const [showFavorites, setShowFavorites] = useState(false);
   const [progress, setProgress] = useState(null);
@@ -71,7 +74,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setStatus(nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
     try {
       if (nextSource === 'mega') {
-        const loaded = audioOnlyCatalog(await loadMegaCatalog(STORYTEL_LIBRARY_URL, { forceRefresh }));
+        const loaded = audioOnlyCatalog(await loadMegaCatalog(getStorytelLibraryUrl(), { forceRefresh }));
         setCatalog(loaded);
         setCategories([ALL_CATEGORY, ...loaded.categories]);
         setActiveCategory(ALL_CATEGORY.name);
@@ -90,6 +93,34 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
       setStatus(nextSource === 'mega'
         ? 'Каталогът на MEGA е недостъпен: ' + detail + '. Книгите не са изтрити от приложението.'
         : detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const replaceMegaFolder = async () => {
+    if (busy) return;
+    const url = replacementUrl.trim();
+    if (!isValidStorytelLibraryUrl(url)) {
+      setStatus('Необходим е пълен HTTPS линк към публична MEGA папка с ключа след #.');
+      return;
+    }
+    setBusy(true);
+    setStatus('Проверявам дали новата MEGA папка е достъпна…');
+    try {
+      // Test availability before changing the saved setting. A blocked link
+      // must not replace the previous working source.
+      const loaded = audioOnlyCatalog(await loadMegaCatalog(url, { forceRefresh: true }));
+      if (loaded.sourceUnavailable) throw new Error(loaded.sourceError || 'MEGA отказва достъп.');
+      setStorytelLibraryUrl(url);
+      setCatalog(loaded);
+      setCategories([ALL_CATEGORY, ...loaded.categories]);
+      setActiveCategory(ALL_CATEGORY.name);
+      setSearch('');
+      setShowFavorites(false);
+      setStatus('Новият източник е активен · ' + loaded.items.length + ' аудиокниги');
+    } catch (error) {
+      setStatus('Новият адрес не може да бъде използван: ' + (error?.message || 'MEGA не отговаря.'));
     } finally {
       setBusy(false);
     }
@@ -277,6 +308,19 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
               <p>Запазените заглавия са само списък — самите аудиофайлове може да са недостъпни.</p>
               <button type="button" onClick={() => chooseSource('mega', { forceRefresh: true })}>
                 Опитай отново
+              </button>
+              <label className="source-mega-address">
+                Имаш друга публична MEGA папка с разрешен достъп?
+                <input
+                  type="url"
+                  value={replacementUrl}
+                  onChange={(event) => setReplacementUrl(event.target.value)}
+                  placeholder="https://mega.nz/folder/ID#ключ"
+                  spellCheck={false}
+                />
+              </label>
+              <button type="button" disabled={!isValidStorytelLibraryUrl(replacementUrl)} onClick={replaceMegaFolder}>
+                Провери и използвай този адрес
               </button>
             </div>
           )}
