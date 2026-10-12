@@ -1,4 +1,4 @@
-import { parseShare, listAudioBooks } from './nextcloud-lib.js';
+import { parseShare, listAudioBooks } from '../server/nextcloud-lib.js';
 export async function GET() {
   try {
     const configured = process.env.NEXTCLOUD_STORYTEL_SHARE_URL;

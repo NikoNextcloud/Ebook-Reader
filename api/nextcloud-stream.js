@@ -1,4 +1,4 @@
-import { parseShare, safePath, davUrl, davHeaders } from './nextcloud-lib.js';
+import { parseShare, safePath, davUrl, davHeaders } from '../server/nextcloud-lib.js';
 const typeFor = (path) => /\.mp3$/i.test(path) ? 'audio/mpeg' : /\.aac$/i.test(path) ? 'audio/aac' : 'audio/mp4';
 const proxy = async (request, method) => {
   let path;

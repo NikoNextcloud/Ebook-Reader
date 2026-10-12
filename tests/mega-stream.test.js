@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRange, isMegaUrl, contentTypeFor, MAX_WINDOW, megaSourceErrorResponse } from './mega-stream.js';
+import { parseRange, isMegaUrl, contentTypeFor, MAX_WINDOW, megaSourceErrorResponse } from '../api/mega-stream.js';
 
 const SIZE = 250 * 1024 * 1024; // 250 MB аудиокнига
 

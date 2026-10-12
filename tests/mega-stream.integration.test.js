@@ -19,7 +19,7 @@ vi.mock('megajs', () => ({
   },
 }));
 
-const { GET, HEAD } = await import('./mega-stream.js');
+const { GET, HEAD } = await import('../api/mega-stream.js');
 const req = (url, headers = {}) => new Request(url, { headers });
 const OK = 'https://mega.nz/folder/A3QgXZTI#key/file/xyz';
 const target = (u) => `https://app.test/api/mega-stream?url=${encodeURIComponent(u)}`;

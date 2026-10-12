@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseShare, safePath, extractDavEntries } from './nextcloud-lib.js';
+import { parseShare, safePath, extractDavEntries } from '../server/nextcloud-lib.js';
 
 describe('Nextcloud share WebDAV integration', () => {
   const share = 'https://server.example/index.php/s/qSrsNmZa7axxwF8';

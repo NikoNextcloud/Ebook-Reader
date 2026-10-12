@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GET } from './eleven-voices';
+import { GET } from '../api/eleven-voices';
 
 describe('GET /api/eleven-voices', () => {
   afterEach(() => {

@@ -43,7 +43,7 @@ vi.mock('megajs', () => ({
   },
 }));
 
-const { GET, HEAD } = await import('./mega-stream.js');
+const { GET, HEAD } = await import('../api/mega-stream.js');
 // Всеки тест ползва свой адрес, за да не му влияе кешът на другите.
 let seq = 0;
 const linkFor = () => { seq += 1; return `https://mega.nz/folder/AAA${seq}#thekey/file/child42`; };
