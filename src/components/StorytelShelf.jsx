@@ -274,6 +274,10 @@ function DailyShelf({
       setCovers({});
       try {
         const catalog = await loader();
+        if (catalog.sourceUnavailable) {
+          if (active) setStatus('error');
+          return;
+        }
         const featured = selector(catalog.items, 10, dayKey);
         if (!active) return;
         setItems(featured);
