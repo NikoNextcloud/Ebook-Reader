@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseShare, safePath, extractDavEntries, listAudioBooks } from '../server/nextcloud-lib.js';
+import { parseShare, safePath, extractDavEntries, listAudioBooks, scanAudioBooksPage } from '../server/nextcloud-lib.js';
 
 describe('Nextcloud share WebDAV integration', () => {
   const share = 'https://server.example/index.php/s/qSrsNmZa7axxwF8';
@@ -62,5 +62,57 @@ describe('Parallel WebDAV indexer', () => {
     await expect(listAudioBooks({}, {
       listFolder: async () => { throw new Error('NEXTCLOUD_HTTP_503'); },
     })).rejects.toThrow('NEXTCLOUD_HTTP_503');
+  });
+});
+
+describe('Paginated large Nextcloud catalog', () => {
+  it('indexes well beyond the previous 2500-folder ceiling without losing entries', async () => {
+    const directoryCount = 2600;
+    const index = (folder) => folder === ''
+      ? Array.from({ length: directoryCount }, (_, i) =>
+          ({ path: 'folder-' + i, name: 'folder-' + i, directory: true }))
+      : [{ path: folder + '/book.mp3', name: 'book.mp3',
+          size: 100, directory: false }];
+    let pending = [''];
+    const paths = new Set();
+    let rounds = 0;
+    while (pending.length) {
+      const page = await scanAudioBooksPage({}, pending, {
+        listFolder: async (_, folder) => index(folder),
+        pageSize: 48, concurrency: 8,
+      });
+      pending = page.nextQueue;
+      page.items.forEach((item) => paths.add(item.path));
+      rounds += 1;
+      expect(rounds).toBeLessThan(100);
+    }
+    expect(paths.size).toBe(directoryCount);
+  });
+
+  it('returns partial results and a resumable folder queue', async () => {
+    const data = {
+      '': [
+        { path: 'Романи', directory: true },
+        { path: 'История', directory: true },
+      ],
+      'Романи': [{ path: 'Романи/Книга.m4b', name: 'Книга.m4b', size: 3 }],
+      'История': [{ path: 'История/book.mp3', name: 'book.mp3', size: 2 }],
+    };
+    const fetchFolder = async (_, path) => data[path] || [];
+    const first = await scanAudioBooksPage({}, [''], {
+      listFolder: fetchFolder, pageSize: 1,
+    });
+    expect(first.items).toHaveLength(0);
+    expect(first.nextQueue).toEqual(['Романи', 'История']);
+    const second = await scanAudioBooksPage({}, first.nextQueue, {
+      listFolder: fetchFolder, pageSize: 1,
+    });
+    expect(second.items).toHaveLength(1);
+    expect(second.done).toBe(false);
+    const third = await scanAudioBooksPage({}, second.nextQueue, {
+      listFolder: fetchFolder, pageSize: 1,
+    });
+    expect(third.done).toBe(true);
+    expect([second.items[0].id, third.items[0].id].every((id) => id.startsWith('nc:'))).toBe(true);
   });
 });

@@ -1,51 +1,33 @@
-import { parseShare, listAudioBooks } from '../server/nextcloud-lib.js';
+import { parseShare, scanAudioBooksPage } from '../server/nextcloud-lib.js';
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
-let savedCatalog = null;
-let pendingCatalog = null;
+// A complete directory tree can contain thousands of subfolders. Each request
+// scans only one batch; the browser carries the remaining queue to the next
+// request. No database, cron task or additional Vercel function is needed.
+const json = (value, status = 200) => Response.json(value, {
+  status, headers: { 'Cache-Control': 'private, no-store' },
+});
 
-export async function GET(request) {
-  const configured = process.env.NEXTCLOUD_STORYTEL_SHARE_URL;
-  if (!configured) {
-    return Response.json({ error: 'NEXTCLOUD_NOT_CONFIGURED' }, { status: 503 });
-  }
-  const refresh = new URL(request.url).searchParams.get('refresh') === '1';
-  const validCache = savedCatalog?.url === configured
-    && Date.now() - savedCatalog.at < CACHE_TTL_MS;
+async function page(request, continuation = false) {
+  const share = process.env.NEXTCLOUD_STORYTEL_SHARE_URL;
+  if (!share) return json({ error: 'NEXTCLOUD_NOT_CONFIGURED' }, 503);
   try {
-    if (!refresh && validCache) {
-      return Response.json(savedCatalog.catalog, {
-        headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-          'X-Catalog-Cache': 'HIT' },
-      });
+    let pending = [''];
+    if (continuation) {
+      const body = await request.json();
+      if (!Array.isArray(body?.pending) || !body.pending.length
+          || body.pending.length > 20000
+          || body.pending.some((item) => typeof item !== 'string' || item.length > 1600)) {
+        return json({ error: 'INVALID_CATALOG_CURSOR' }, 400);
+      }
+      pending = body.pending;
     }
-    // Request coalescing prevents the home shelf and catalog picker from
-    // starting independent scans when both open at the same time.
-    if (!pendingCatalog || pendingCatalog.url !== configured) {
-      const requestPromise = listAudioBooks(parseShare(configured))
-        .then((catalog) => {
-          savedCatalog = { url: configured, catalog, at: Date.now() };
-          return catalog;
-        });
-      pendingCatalog = { url: configured, promise: requestPromise };
-      requestPromise.finally(() => {
-        if (pendingCatalog?.promise === requestPromise) pendingCatalog = null;
-      }).catch(() => {});
-    }
-    const catalog = await pendingCatalog.promise;
-    return Response.json(catalog, {
-      headers: { 'Cache-Control': refresh ? 'no-store'
-        : 'public, s-maxage=300, stale-while-revalidate=600',
-        'X-Catalog-Cache': 'MISS' },
-    });
+    const config = parseShare(share);
+    const catalog = await scanAudioBooksPage(config, pending);
+    return json(catalog);
   } catch (error) {
-    // A temporary WebDAV outage should not erase a previously fetched index.
-    if (savedCatalog?.url === configured && !refresh) {
-      return Response.json({ ...savedCatalog.catalog, sourceUnavailable: true,
-        sourceError: 'Nextcloud временно не отговаря.' },
-        { headers: { 'Cache-Control': 'no-store', 'X-Catalog-Cache': 'STALE' } });
-    }
-    return Response.json({ error: error?.message || 'NEXTCLOUD_UNAVAILABLE' },
-      { status: 502, headers: { 'Cache-Control': 'no-store' } });
+    return json({ error: error?.message || 'NEXTCLOUD_UNAVAILABLE' }, 502);
   }
 }
+
+export const GET = (request) => page(request, false);
+export const POST = (request) => page(request, true);

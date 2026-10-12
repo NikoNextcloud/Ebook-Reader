@@ -59,59 +59,38 @@ export const listDav = async (config, folder = '') => {
 // PROPFIND calls. Run a small pool instead of waiting for each folder in series.
 // Eight requests keeps latency low while avoiding uncontrolled fan-out on
 // home-hosted Nextcloud instances.
-export const listAudioBooks = async (
-  config,
-  { listFolder = listDav, concurrency = 8 } = {},
+// Scan a bounded number of directories in each API request. The caller
+// sends back the pending folders, allowing very large libraries to finish
+// without hitting serverless time limits or the old 2500-folder ceiling.
+export const scanAudioBooksPage = async (
+  config, pending = [''], { listFolder = listDav, concurrency = 8, pageSize = 48 } = {},
 ) => {
-  const limit = Math.min(12, Math.max(1, Math.floor(concurrency) || 8));
-  const pending = [''];
-  const queued = new Set(['']);
-  const discovered = [];
-  let active = 0;
-  let finished = false;
-
-  await new Promise((resolve, reject) => {
-    const fail = (error) => {
-      if (finished) return;
-      finished = true;
-      reject(error);
-    };
-    const pump = () => {
-      if (finished) return;
-      while (active < limit && pending.length > 0) {
-        const folder = pending.shift();
-        active += 1;
-        Promise.resolve().then(() => listFolder(config, folder)).then((entries) => {
-          if (finished) return;
-          for (const entry of entries) {
-            if (entry.path === folder) continue;
-            if (entry.directory) {
-              if (!queued.has(entry.path)) {
-                queued.add(entry.path);
-                if (queued.size > 2500) throw new Error('CATALOG_TOO_LARGE');
-                pending.push(entry.path);
-              }
-            } else if (AUDIO_EXT.test(entry.name)) {
-              discovered.push(entry);
-              if (discovered.length > MAX_ITEMS) throw new Error('CATALOG_TOO_LARGE');
-            }
-          }
-          active -= 1;
-          pump();
-        }).catch(fail);
+  const queue = [...new Set(pending)];
+  const count = Math.min(Math.max(1, Math.floor(pageSize)), 64, queue.length);
+  const folders = queue.slice(0, count);
+  const rest = queue.slice(count);
+  const workers = Math.min(Math.max(1, Math.floor(concurrency)), 12, folders.length);
+  const foundFolders = [];
+  const foundAudio = [];
+  let cursor = 0;
+  await Promise.all(Array.from({ length: workers }, async () => {
+    while (cursor < folders.length) {
+      const folder = folders[cursor++];
+      const entries = await listFolder(config, folder);
+      const prefix = folder ? folder + '/' : '';
+      for (const entry of entries) {
+        // Only accept immediate children; never trust unrelated DAV hrefs.
+        if (!entry.path?.startsWith(prefix) || entry.path === folder) continue;
+        const suffix = entry.path.slice(prefix.length);
+        if (!suffix || suffix.includes('/')) continue;
+        if (entry.directory) foundFolders.push(entry.path);
+        else if (AUDIO_EXT.test(entry.name)) foundAudio.push(entry);
       }
-      if (!active && !pending.length && !finished) {
-        finished = true;
-        resolve();
-      }
-    };
-    pump();
-  });
-
-  // Stable ordering and IDs preserve the position of books on refresh.
-  discovered.sort((a, b) => a.path.localeCompare(b.path, 'bg'));
-  const items = discovered.map((entry, index) => ({
-    id: 'nc-' + index,
+    }
+  }));
+  const nextQueue = [...new Set([...rest, ...foundFolders])];
+  const items = foundAudio.map((entry) => ({
+    id: 'nc:' + entry.path,
     kind: 'audio',
     name: entry.name,
     path: entry.path,
@@ -120,5 +99,21 @@ export const listAudioBooks = async (
     url: '/api/nextcloud-stream?path=' + encodeURIComponent(entry.path),
     provider: 'nextcloud',
   }));
+  items.sort((a, b) => a.path.localeCompare(b.path, 'bg'));
+  return { title: 'Сторител Аудиокниги', items, nextQueue,
+    scannedFolders: folders.length, done: nextQueue.length === 0 };
+};
+
+// Keep the full scanner available for tooling/tests, but the Vercel API uses
+// scanAudioBooksPage so it never needs to traverse the entire tree at once.
+export const listAudioBooks = async (config, options = {}) => {
+  let pending = [''];
+  const items = [];
+  while (pending.length) {
+    const page = await scanAudioBooksPage(config, pending, options);
+    pending = page.nextQueue;
+    items.push(...page.items);
+  }
+  items.sort((a, b) => a.path.localeCompare(b.path, 'bg'));
   return { title: 'Сторител Аудиокниги', items, categories: [] };
 };
