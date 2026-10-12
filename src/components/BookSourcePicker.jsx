@@ -57,7 +57,7 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     });
   }, [activeCategory, catalog, favoriteKeys, search, showFavorites, source]);
 
-  const chooseSource = async (nextSource) => {
+  const chooseSource = async (nextSource, { forceRefresh = false } = {}) => {
     if (nextSource === 'manual') {
       onManual();
       return;
@@ -71,11 +71,13 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
     setStatus(nextSource === 'mega' ? 'Зареждам Storytel…' : 'Зареждам библиотеката…');
     try {
       if (nextSource === 'mega') {
-        const loaded = audioOnlyCatalog(await loadMegaCatalog(STORYTEL_LIBRARY_URL));
+        const loaded = audioOnlyCatalog(await loadMegaCatalog(STORYTEL_LIBRARY_URL, { forceRefresh }));
         setCatalog(loaded);
         setCategories([ALL_CATEGORY, ...loaded.categories]);
         setActiveCategory(ALL_CATEGORY.name);
-        setStatus(`${loaded.items.length} аудиокниги`);
+        setStatus(loaded.sourceUnavailable
+          ? 'Показан е запазен списък с ' + loaded.items.length + ' заглавия. В момента MEGA не предоставя каталога: ' + loaded.sourceError
+          : loaded.items.length + ' аудиокниги');
       } else {
         const loaded = await loadFourEtiLibrary(FOUR_ETI_URL);
         setCatalog(loaded);
@@ -84,7 +86,10 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
         setStatus(`${loaded.items.length} книги в „Нови“`);
       }
     } catch (error) {
-      setStatus(error.message || 'Библиотеката не може да се зареди.');
+      const detail = error?.message || 'Източникът не отговаря.';
+      setStatus(nextSource === 'mega'
+        ? 'Каталогът на MEGA е недостъпен: ' + detail + '. Книгите не са изтрити от приложението.'
+        : detail);
     } finally {
       setBusy(false);
     }
@@ -266,6 +271,15 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
         </aside>
 
         <section className="source-catalog-main">
+          {source === 'mega' && !busy && (!catalog || catalog.sourceUnavailable) && (
+            <div className="source-status" role="alert">
+              <p>{status}</p>
+              <p>Запазените заглавия са само списък — самите аудиофайлове може да са недостъпни.</p>
+              <button type="button" onClick={() => chooseSource('mega', { forceRefresh: true })}>
+                Опитай отново
+              </button>
+            </div>
+          )}
           <div className="source-search-row">
             <label>
               <Search aria-hidden="true" />
@@ -338,7 +352,9 @@ export default function BookSourcePicker({ onManual, onDocument, onAudio }) {
           )}
         </div>
       ) : (
-        <p className="source-status" role="status">{busy ? 'Зареждам…' : status}</p>
+        <p className="source-status" role="status">
+          {busy ? 'Зареждам…' : source === 'mega' && (!catalog || catalog.sourceUnavailable) ? '' : status}
+        </p>
       )}
     </div>
   );
