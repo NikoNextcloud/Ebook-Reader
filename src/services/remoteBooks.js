@@ -341,6 +341,18 @@ export const loadMegaCatalog = (url, { forceRefresh = false } = {}) => {
   return megaCatalogCache.get(url);
 };
 
+export const loadStorytelCatalog = async ({ forceRefresh = false } = {}) => {
+  const endpoint = '/api/nextcloud-catalog';
+  const response = await fetch(endpoint, { cache: forceRefresh ? 'no-store' : 'default' });
+  if (!response.ok) {
+    const details = await response.json().catch(() => ({}));
+    throw new Error(details.error || 'Nextcloud не отговаря (HTTP ' + response.status + ').');
+  }
+  const catalog = await response.json();
+  if (!Array.isArray(catalog.items)) throw new Error('Невалиден отговор от Nextcloud.');
+  return catalog;
+};
+
 export const audioOnlyCatalog = (catalog) => {
   const items = (catalog?.items || []).filter((item) => item.kind === 'audio');
   if (!items.length) {
