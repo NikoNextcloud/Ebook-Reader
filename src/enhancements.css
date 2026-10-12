@@ -2801,3 +2801,62 @@ header.minimal{justify-content:space-between;gap:16px}
   .storage-auto-clean{grid-template-columns:24px minmax(0,1fr)}
   .storage-auto-clean label:last-child{grid-column:2}
 }
+
+
+/* Recover from an unavailable MEGA catalog without losing the current view. */
+.source-catalog-main > .source-status[role="alert"] {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  margin: 0 0 16px;
+  border: 1px solid #815b47;
+  border-radius: 12px;
+  background: rgba(103, 63, 42, .12);
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.source-catalog-main > .source-status[role="alert"] p {
+  margin: 0;
+}
+.source-catalog-main > .source-status[role="alert"] button {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid #af715d;
+  border-radius: 9px;
+  background: #322822;
+  color: #f9e6dd;
+  cursor: pointer;
+  font-size: 12px;
+}
+.source-catalog-main > .source-status[role="alert"] button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.source-mega-address {
+  display: grid;
+  gap: 7px;
+  max-width: 100%;
+  font-size: 12px;
+}
+.source-mega-address input {
+  width: 100%;
+  min-width: 0;
+  height: 45px;
+  padding: 0 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid #8a776b;
+  border-radius: 8px;
+  font: inherit;
+}
+@media (max-width: 640px) {
+  .source-catalog-main > .source-status[role="alert"] {
+    padding: 12px;
+  }
+  .source-catalog-main > .source-status[role="alert"] button {
+    width: 100%;
+  }
+}
