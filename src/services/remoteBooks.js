@@ -62,9 +62,12 @@ const STORYTEL_LIBRARY_OVERRIDE_KEY = 'voxora_storytel_library_url_v1';
 export const isValidStorytelLibraryUrl = (value) => {
   try {
     const parsed = new URL(value);
+    const parts = parsed.pathname.split('/').filter(Boolean);
     return parsed.protocol === 'https:'
       && parsed.hostname === 'mega.nz'
-      && /^\\/folder\\/[A-Za-z0-9_-]+\\/?$/.test(parsed.pathname)
+      && parts.length === 2
+      && parts[0] === 'folder'
+      && /^[A-Za-z0-9_-]+$/.test(parts[1])
       && /^#[A-Za-z0-9_-]+$/.test(parsed.hash);
   } catch {
     return false;
