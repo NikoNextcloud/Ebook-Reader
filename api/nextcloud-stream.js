@@ -2,7 +2,7 @@ import { parseShare, safePath, davUrl, davHeaders } from './nextcloud-lib.js';
 const typeFor = (path) => /\.mp3$/i.test(path) ? 'audio/mpeg' : /\.aac$/i.test(path) ? 'audio/aac' : 'audio/mp4';
 const proxy = async (request, method) => {
   let path;
-  try { path = safePath(new URL(request.url).searchParams.get('path') || ''); } catch { return new Response('Invalid path', { status: 400 }); }
+  try { path = new URL(request.url).searchParams.get('path') || ''; safePath(path); } catch { return new Response('Invalid path', { status: 400 }); }
   if (!path || !/\.(m4b|m4a|mp3|aac)$/i.test(path)) return new Response('Invalid audio path', { status: 400 });
   try {
     if (!process.env.NEXTCLOUD_STORYTEL_SHARE_URL) return new Response('Nextcloud not configured', { status: 503 });
