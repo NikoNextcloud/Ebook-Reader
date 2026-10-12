@@ -56,6 +56,44 @@ export const STORYTEL_LIBRARY_URL = (
   import.meta.env?.VITE_STORYTEL_LIBRARY_URL?.trim() || DEFAULT_STORYTEL_LIBRARY_URL
 );
 
+const STORYTEL_LIBRARY_OVERRIDE_KEY = 'voxora_storytel_library_url_v1';
+
+// Accept only complete public MEGA folder links, never arbitrary URLs.
+export const isValidStorytelLibraryUrl = (value) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:'
+      && parsed.hostname === 'mega.nz'
+      && /^\\/folder\\/[A-Za-z0-9_-]+\\/?$/.test(parsed.pathname)
+      && /^#[A-Za-z0-9_-]+$/.test(parsed.hash);
+  } catch {
+    return false;
+  }
+};
+
+export const getStorytelLibraryUrl = (storage = globalThis.localStorage) => {
+  try {
+    const custom = storage?.getItem(STORYTEL_LIBRARY_OVERRIDE_KEY)?.trim() || '';
+    return isValidStorytelLibraryUrl(custom) ? custom : STORYTEL_LIBRARY_URL;
+  } catch {
+    return STORYTEL_LIBRARY_URL;
+  }
+};
+
+export const setStorytelLibraryUrl = (value, storage = globalThis.localStorage) => {
+  const url = value?.trim() || '';
+  if (!isValidStorytelLibraryUrl(url)) {
+    throw new Error('Въведи пълен HTTPS адрес към публична MEGA папка, включително ключа след #.');
+  }
+  try {
+    if (!storage) throw new Error('STORAGE_UNAVAILABLE');
+    storage.setItem(STORYTEL_LIBRARY_OVERRIDE_KEY, url);
+    return url;
+  } catch {
+    throw new Error('Браузърът не позволява запазване на MEGA адреса. Провери настройките за съхранение.');
+  }
+};
+
 export const MAX_IN_APP_AUDIO_BYTES = 220 * 1024 * 1024;
 
 export const remoteDocumentScore = (item) => {
