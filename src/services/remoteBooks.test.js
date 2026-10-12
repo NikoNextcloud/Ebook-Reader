@@ -12,6 +12,9 @@ import {
   STORYTEL_LIBRARY_URL,
   saveMegaCatalogSnapshot,
   readMegaCatalogSnapshot,
+  getStorytelLibraryUrl,
+  setStorytelLibraryUrl,
+  isValidStorytelLibraryUrl,
 } from './remoteBooks';
 
 describe('remote book links', () => {
@@ -93,6 +96,27 @@ describe('remote book links', () => {
   it('ignores broken cache entries', () => {
     const storage = { getItem: () => '{broken json' };
     expect(readMegaCatalogSnapshot('https://mega.nz/folder/abc#key', storage)).toBeNull();
+  });
+
+  it('accepts complete public MEGA folder links and rejects unrelated hosts', () => {
+    const url = 'https://mega.nz/folder/AbC123#sharedKey';
+    expect(isValidStorytelLibraryUrl(url)).toBe(true);
+    expect(isValidStorytelLibraryUrl('https://evil.test/folder/AbC123#sharedKey')).toBe(false);
+    expect(isValidStorytelLibraryUrl('https://mega.nz/folder/AbC123')).toBe(false);
+    expect(isValidStorytelLibraryUrl('http://mega.nz/folder/AbC123#sharedKey')).toBe(false);
+  });
+
+  it('keeps a verified source URL in browser storage', () => {
+    const store = new Map();
+    const storage = {
+      getItem: (key) => store.get(key) || null,
+      setItem: (key, value) => store.set(key, value),
+    };
+    const url = 'https://mega.nz/folder/AbC123#sharedKey';
+    expect(setStorytelLibraryUrl(url, storage)).toBe(url);
+    expect(getStorytelLibraryUrl(storage)).toBe(url);
+    expect(() => setStorytelLibraryUrl('https://invalid.test', storage)).toThrow();
+    expect(getStorytelLibraryUrl(storage)).toBe(url);
   });
 
   it('uses the current Storytel folder and hides non-audio helper files', () => {
