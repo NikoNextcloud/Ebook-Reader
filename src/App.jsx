@@ -34,6 +34,7 @@ import {
   setRemoteFavorite,
 } from './services/remoteFavorites';
 import { loadSettings, saveSettings } from './services/settings';
+import { downloadMegaDirect } from './services/megaFallback';
 import { detectLanguage, langLabel } from './services/lang';
 import { idbClear } from './services/idbCache';
 import {
@@ -669,6 +670,33 @@ export default function App() {
       });
     }
   };
+  const retryMegaFromDevice = async (onProgress) => {
+    if (!audioBook?.sourceUrl || !isMegaUrl(audioBook.sourceUrl)) {
+      throw new Error('За тази книга няма валиден MEGA адрес.');
+    }
+    const current = audioBook;
+    const downloaded = await downloadMegaDirect(current.sourceUrl, current.fileName, onProgress);
+    openAudioBook(downloaded, {
+      book: { ...current, url: current.sourceUrl, cover: current.coverUrl },
+      libraryId: current.id,
+      source: 'mega',
+      favorite: current.favorite,
+      remoteKey: current.remoteKey,
+    });
+  };
+
+  const openLocalAudioInstead = (file) => {
+    if (!file || !audioBook) return;
+    const current = audioBook;
+    openAudioBook({ file, name: file.name }, {
+      book: { ...current, url: current.sourceUrl, cover: current.coverUrl },
+      libraryId: current.id,
+      source: current.sourceUrl ? 'mega' : 'local',
+      favorite: current.favorite,
+      remoteKey: current.remoteKey,
+    });
+  };
+
   const closeAudioBook = (currentTime, duration) => {
     if (audioBook?.id) updateAudioPosition(audioBook.id, currentTime, duration);
     setAudioBook(null);
@@ -1346,6 +1374,8 @@ export default function App() {
           onAudioSettings={saveAudioSettings}
           onOfflineSettings={saveOfflineSettings}
           onCacheBook={cacheCurrentAudioBook}
+          onDirectMegaPlayback={retryMegaFromDevice}
+          onLocalAudioFile={openLocalAudioInstead}
           onFinished={() => {
             setBookField(audioBook.id, { finished: true });
             refreshAudioBook(audioBook.id);

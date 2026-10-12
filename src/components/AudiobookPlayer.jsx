@@ -86,6 +86,8 @@ export default function AudiobookPlayer({
   onAudioSettings,
   onOfflineSettings,
   onCacheBook,
+  onDirectMegaPlayback,
+  onLocalAudioFile,
 }) {
   const audioRef = useRef(null);
   const frameRef = useRef(null);
@@ -107,6 +109,8 @@ export default function AudiobookPlayer({
   const [energy, setEnergy] = useState(0);
   const [message, setMessage] = useState('');
   const [audioLoading, setAudioLoading] = useState(true);
+  const [megaBlocked, setMegaBlocked] = useState(false);
+  const [directBusy, setDirectBusy] = useState(false);
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [sleepRemaining, setSleepRemaining] = useState(0);
   const [sleepChapterEnd, setSleepChapterEnd] = useState(0);
@@ -354,6 +358,29 @@ export default function AudiobookPlayer({
     lastSavedRef.current = timeRef.current;
   };
 
+  const reportAudioError = async (audio) => {
+    const problem = await describeAudioProblem(audio, book.audioUrl);
+    setMessage(problem);
+    setMegaBlocked(
+      !!book.sourceUrl && /(?:EBLOCKED|EOVERQUOTA|HTTP (?:403|429|502))/i.test(problem),
+    );
+  };
+
+  const loadDirectlyFromMega = async () => {
+    if (directBusy || !onDirectMegaPlayback) return;
+    setDirectBusy(true);
+    setMessage('Свързвам се с MEGA от устройството…');
+    try {
+      await onDirectMegaPlayback((percent) => {
+        setMessage(`Изтеглям книгата директно от MEGA… ${percent}%`);
+      });
+    } catch (error) {
+      setMessage(error?.message || 'Директното сваляне от MEGA се провали.');
+    } finally {
+      setDirectBusy(false);
+    }
+  };
+
   const toggle = async () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -373,7 +400,7 @@ export default function AudiobookPlayer({
         setMessage('Телефонът блокира звука. Натисни Play още веднъж.');
         return;
       }
-      setMessage(await describeAudioProblem(audio, book.audioUrl));
+      await reportAudioError(audio);
     }
   };
 
@@ -705,7 +732,7 @@ export default function AudiobookPlayer({
         onError={async (event) => {
           setPlaying(false);
           setAudioLoading(false);
-          setMessage(await describeAudioProblem(event.currentTarget, book.audioUrl));
+          await reportAudioError(event.currentTarget);
         }}
         onPause={() => { setPlaying(false); saveProgress(); }}
         onEnded={() => {
@@ -746,6 +773,25 @@ export default function AudiobookPlayer({
       </div>
 
       {message && <p className="ab-message" role="status">{message}</p>}
+      {megaBlocked && onDirectMegaPlayback && (
+        <div className="ab-mega-recovery">
+          <p>MEGA отказва сървърния достъп. Можеш да опиташ от своя браузър. Това изтегля целия файл и изисква свободна памет (до 220 MB).</p>
+          <button type="button" className="ab-offline-download" onClick={loadDirectlyFromMega} disabled={directBusy}>
+            {directBusy ? 'Изтеглям от MEGA…' : 'Опитай директно от MEGA'}
+          </button>
+          {onLocalAudioFile && (
+            <label className="ab-mega-local">
+              Или отвори вече изтеглен файл от устройството
+              <input type="file" accept=".m4b,.m4a,.mp3,.aac,audio/*" disabled={directBusy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) onLocalAudioFile(file);
+                }}
+              />
+            </label>
+          )}
+        </div>
+      )}
 
       <div className="ab-transport">
         <button className="ab-track" onClick={previousChapter} aria-label={chapters.length ? 'Предишна глава' : 'В началото'}>

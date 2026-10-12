@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRange, isMegaUrl, contentTypeFor, MAX_WINDOW } from './mega-stream.js';
+import { parseRange, isMegaUrl, contentTypeFor, MAX_WINDOW, megaSourceErrorResponse } from './mega-stream.js';
 
 const SIZE = 250 * 1024 * 1024; // 250 MB аудиокнига
 
@@ -61,5 +61,25 @@ describe('contentTypeFor', () => {
     expect(contentTypeFor('book.mp3')).toBe('audio/mpeg');
     expect(contentTypeFor('book.m4b')).toBe('audio/mp4');
     expect(contentTypeFor('book.aac')).toBe('audio/aac');
+  });
+});
+
+describe('MEGA upstream access errors', () => {
+  it('distinguishes blocked shares from a server failure', async () => {
+    const response = megaSourceErrorResponse(new Error('EBLOCKED (-16): User blocked'));
+    expect(response.status).toBe(403);
+    expect(response.headers.get('x-mega-error')).toBe('EBLOCKED');
+    expect(await response.text()).toContain('MEGA');
+  });
+
+  it('returns no body for a blocked HEAD request', async () => {
+    const response = megaSourceErrorResponse(new Error('EBLOCKED (-16): User blocked'), true);
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe('');
+  });
+
+  it('treats upstream download quota separately', () => {
+    const response = megaSourceErrorResponse(new Error('EOVERQUOTA (-17): Request over quota'));
+    expect(response.status).toBe(429);
   });
 });

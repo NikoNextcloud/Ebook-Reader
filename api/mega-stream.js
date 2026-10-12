@@ -106,6 +106,24 @@ const resolveMegaFile = async (url, wantedName = '') => {
   return file;
 };
 
+// MEGA's -16 is an access restriction, not a transient streaming failure.
+export const megaSourceErrorResponse = (error, head = false) => {
+  const reason = String(error?.message || '');
+  if (/EBLOCKED\s*\(-16\)|\bEBLOCKED\b/i.test(reason)) {
+    return new Response(head ? null : 'MEGA отказва достъп до аудиото (EBLOCKED). Опитай директно от устройството или провери дали споделената връзка е активна.', {
+      status: 403,
+      headers: { 'X-Mega-Error': 'EBLOCKED', 'Cache-Control': 'no-store' },
+    });
+  }
+  if (/EOVERQUOTA\s*\(-17\)|\bEOVERQUOTA\b/i.test(reason)) {
+    return new Response(head ? null : 'MEGA е достигнала лимита за прехвърляне на данни. Опитай отново по-късно.', {
+      status: 429,
+      headers: { 'X-Mega-Error': 'EOVERQUOTA', 'Cache-Control': 'no-store' },
+    });
+  }
+  return new Response(head ? null : `Аудиото не може да се отвори: ${reason || 'няма достъп'}`, { status: 502 });
+};
+
 export async function GET(request) {
   const params = new URL(request.url).searchParams;
   const source = params.get('url') || '';
@@ -115,9 +133,7 @@ export async function GET(request) {
   try {
     file = await resolveMegaFile(source, params.get('name') || '');
   } catch (error) {
-    // Ясна причина вместо мълчалив 502 — иначе плеърът показва подвеждащо
-    // „телефонът блокира звука“, когато проблемът е в източника.
-    return new Response(`Аудиото не може да се отвори: ${error.message || 'няма достъп'}`, { status: 502 });
+    return megaSourceErrorResponse(error);
   }
 
   const size = file.size || 0;
@@ -190,7 +206,7 @@ export async function HEAD(request) {
         'Accept-Ranges': 'bytes',
       },
     });
-  } catch {
-    return new Response(null, { status: 502 });
+  } catch (error) {
+    return megaSourceErrorResponse(error, true);
   }
 }
