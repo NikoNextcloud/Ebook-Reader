@@ -10,8 +10,7 @@ import {
   downloadRemoteArtwork,
   formatRemoteSize,
   loadFourEtiLibrary,
-  loadMegaCatalog,
-  getStorytelLibraryUrl,
+  loadStorytelCatalog,
 } from '../services/remoteBooks';
 
 const FOUR_ETI_URL = 'https://4eti.me/';
@@ -357,7 +356,7 @@ function DailyShelf({
   );
 }
 
-const loadStorytel = () => loadMegaCatalog(getStorytelLibraryUrl());
+const loadStorytel = () => loadStorytelCatalog();
 const loadLibrary = () => loadFourEtiLibrary(FOUR_ETI_URL);
 
 export default function StorytelShelf({ onOpen, onOpenLibrary }) {
