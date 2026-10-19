@@ -28,6 +28,7 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
+import { describeNextcloudProblem } from '../services/nextcloudDiagnostics';
 import { AudioEnhancer, AUDIO_PROFILES } from '../services/audioEnhancer';
 import {
   activeTranscriptCue,
@@ -56,7 +57,14 @@ const fmt = (seconds) => {
 // пита сървъра какво отговаря — така не обвиняваме телефона напразно.
 const describeAudioProblem = async (audio, url) => {
   const code = audio?.error?.code;
+  if (code === 2 || code === 4) {
+    const problem = await describeNextcloudProblem(url);
+    if (problem) return problem;
+  }
   if (code === 4) {
+    if (typeof url === 'string' && url.startsWith('/api/nextcloud-stream?')) {
+      return 'Форматът на тази аудиокнига не се поддържа от браузъра.';
+    }
     try {
       const probe = await fetch(url, { headers: { Range: 'bytes=0-1' } });
       if (!probe.ok && probe.status !== 206) {
